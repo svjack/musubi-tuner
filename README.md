@@ -178,6 +178,10 @@ Use `--debug_mode image` to display dataset images and captions in a new window,
 Text Encoder output pre-caching is required. Create the cache using the following command:
 
 ```bash
+python cache_text_encoder_outputs.py --dataset_config video_config.toml  --text_encoder1 ckpts/text_encoder --text_encoder2 ckpts/text_encoder_2 --batch_size 16
+```
+
+```bash
 python cache_text_encoder_outputs.py --dataset_config path/to/toml  --text_encoder1 path/to/ckpts/text_encoder --text_encoder2 path/to/ckpts/text_encoder_2 --batch_size 16
 ```
 
