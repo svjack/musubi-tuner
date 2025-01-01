@@ -665,6 +665,12 @@ python hv_generate_video.py \
 ```
 
 
+
+https://github.com/user-attachments/assets/555aa2ea-9a04-4f05-8ab0-6602eeb4c866
+
+
+
+
 ```bash
 python hv_generate_video.py --fp8 --video_size 544 960 --video_length 5 --infer_steps 30 
     --prompt "A cat walks on the grass, realistic style."  --save_path path/to/save/dir --output_type both 
