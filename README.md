@@ -47,6 +47,7 @@ Additionally, install `ascii-magic` (used for dataset verification), `matplotlib
 
 ```bash
 pip install ascii-magic matplotlib tensorboard huggingface_hub
+pip install moviepy==1.0.3
 ```
 
 ### Model Download
@@ -81,6 +82,86 @@ Please refer to [dataset configuration guide](./dataset/dataset_config.md).
 ### Latent Pre-caching
 
 Latent pre-caching is required. Create the cache using the following command:
+```bash
+git clone https://huggingface.co/datasets/svjack/Genshin-Impact-XiangLing-animatediff-with-score-organized
+```
+
+```python
+from moviepy.editor import VideoFileClip
+import os
+import toml  # 需要安装 toml 库
+
+def generate_video_config(video_path, save_path=None):
+    # 加载视频
+    clip = VideoFileClip(video_path)
+
+    # 计算视频的分辨率（长宽）和帧数
+    width, height = clip.size
+    frame_count = int(clip.fps * clip.duration)
+
+    # 初始的 target_frames
+    target_frames = [1, 25, 45]
+
+    # 去掉大于 frame_count 的元素
+    target_frames = [frame for frame in target_frames if frame <= frame_count]
+
+    # 确保 target_frames 严格递增
+    target_frames = sorted(set(target_frames))  # 去重并排序
+
+    # 确保最后一个元素是 frame_count
+    if frame_count not in target_frames:
+        target_frames.append(frame_count)
+    target_frames = sorted(set(target_frames))  # 再次确保严格递增
+
+    # 构建 TOML 格式的配置字典
+    config = {
+        "general": {
+            "resolution": [width, height],
+            "caption_extension": ".txt",
+            "batch_size": 1,
+            "enable_bucket": True,
+            "bucket_no_upscale": False,
+        },
+        "datasets": [
+            {
+                "video_directory": "/path/to/video_dir",
+                "target_frames": target_frames,
+                "frame_extraction": "head",
+            }
+        ],
+    }
+
+    # 将配置字典转换为 TOML 格式字符串
+    config_str = toml.dumps(config)
+
+    # 打印生成的配置
+    print("Generated Configuration (TOML):")
+    print(config_str)
+
+    # 如果提供了保存路径，将配置保存到本地文件
+    if save_path:
+        with open(save_path, 'w') as f:
+            toml.dump(config, f)
+        print(f"Configuration saved to {save_path}")
+
+    # 关闭视频剪辑
+    clip.close()
+
+    return config_str
+
+# 示例使用
+import pathlib
+video_path = str(list(pathlib.Path("Genshin-Impact-XiangLing-animatediff-with-score-organized").rglob("*.mp4"))[0])
+save_path = "video_config.toml"  # 配置保存路径，可选
+# 生成并保存配置
+config = generate_video_config(video_path, save_path)
+```
+
+- add Genshin-Impact-XiangLing-animatediff-with-score-organized as video_directory
+
+```bash
+python cache_latents.py --dataset_config video_config.toml --vae ckpts/hunyuan-video-t2v-720p/vae/pytorch_model.pt --vae_chunk_size 32 --vae_tiling
+```
 
 ```bash
 python cache_latents.py --dataset_config path/to/toml --vae path/to/ckpts/hunyuan-video-t2v-720p/vae/pytorch_model.pt --vae_chunk_size 32 --vae_tiling
