@@ -634,8 +634,14 @@ python hv_generate_video.py \
     --text_encoder2 ckpts/text_encoder_2 \
     --seed 1234 \
     --lora_multiplier 1.0 \
-    --lora_weight zhongli_ningguang_couple_im_lora_dir/zhongli_ningguang_couple_im_lora-000004.safetensors
+    --lora_weight zhongli_ningguang_couple_im_lora_dir/zhongli_ningguang_couple_im_lora-000012.safetensors
 ```
+
+
+
+
+https://github.com/user-attachments/assets/b56540c0-0b29-409d-853e-9aaed2a25a28
+
 
 ```baah
 python hv_generate_video.py \
@@ -643,7 +649,7 @@ python hv_generate_video.py \
     --video_size 544 960 \
     --video_length 60 \
     --infer_steps 30 \
-    --prompt "ZHONGLI\\(genshin impact\\). drink water, dynamic" \
+    --prompt "ZHONGLI\\(genshin impact\\). drink tea" \
     --save_path . \
     --output_type both \
     --dit ckpts/hunyuan-video-t2v-720p/transformers/mp_rank_00_model_states.pt \
@@ -655,28 +661,7 @@ python hv_generate_video.py \
     --text_encoder2 ckpts/text_encoder_2 \
     --seed 1234 \
     --lora_multiplier 1.0 \
-    --lora_weight zhongli_ningguang_couple_im_lora_dir/zhongli_ningguang_couple_im_lora-000004.safetensors
-```
-
-```baah
-python hv_generate_video.py \
-    --fp8 \
-    --video_size 544 960 \
-    --video_length 60 \
-    --infer_steps 30 \
-    --prompt "NING GUANG\\(genshin impact\\) in red cheongsam. eat bread, dynamic" \
-    --save_path . \
-    --output_type both \
-    --dit ckpts/hunyuan-video-t2v-720p/transformers/mp_rank_00_model_states.pt \
-    --attn_mode sdpa \
-    --vae ckpts/hunyuan-video-t2v-720p/vae/pytorch_model.pt \
-    --vae_chunk_size 32 \
-    --vae_spatial_tile_sample_min_size 128 \
-    --text_encoder1 ckpts/text_encoder \
-    --text_encoder2 ckpts/text_encoder_2 \
-    --seed 1234 \
-    --lora_multiplier 1.0 \
-    --lora_weight zhongli_ningguang_couple_im_lora_dir/zhongli_ningguang_couple_im_lora-000004.safetensors
+    --lora_weight zhongli_ningguang_couple_im_lora_dir/zhongli_ningguang_couple_im_lora-000012.safetensors
 ```
 
 
