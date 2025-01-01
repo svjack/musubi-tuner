@@ -22,7 +22,16 @@ __This repository is under development. Only image training has been verified.__
 Create a virtual environment and install PyTorch and torchvision matching your CUDA version. Verified to work with version 2.5.1.
 
 ```bash
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
+sudo apt-get update && sudo apt-get install git-lfs ffmpeg cbm
+
+conda create -n musubi-tuner python=3.10
+conda activate musubi-tuner
+pip install ipykernel
+python -m ipykernel install --user --name musubi-tuner --display-name "musubi-tuner"
+
+pip install torch torchvision
+
+#pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
 ```
 
 Install the required dependencies using the following command:
