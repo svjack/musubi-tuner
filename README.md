@@ -37,6 +37,7 @@ pip install torch torchvision
 Install the required dependencies using the following command:
 
 ```bash
+git clone https://github.com/svjack/musubi-tuner && cd musubi-tuner
 pip install -r requirements.txt
 ```
 
