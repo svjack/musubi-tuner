@@ -53,6 +53,15 @@ pip install ascii-magic matplotlib tensorboard huggingface_hub
 
 Download the model following the [official README](https://github.com/Tencent/HunyuanVideo/blob/main/ckpts/README.md) and place it in your chosen directory with the following structure:
 
+```bash
+huggingface-cli download tencent/HunyuanVideo --local-dir ./ckpts
+cd ckpts
+huggingface-cli download xtuner/llava-llama-3-8b-v1_1-transformers --local-dir ./llava-llama-3-8b-v1_1-transformers
+wget https://raw.githubusercontent.com/Tencent/HunyuanVideo/refs/heads/main/hyvideo/utils/preprocess_text_encoder_tokenizer_utils.py
+python preprocess_text_encoder_tokenizer_utils.py --input_dir llava-llama-3-8b-v1_1-transformers --output_dir text_encoder
+huggingface-cli download openai/clip-vit-large-patch14 --local-dir ./text_encoder_2
+```
+
 ```
   ckpts
     ├──hunyuan-video-t2v-720p
