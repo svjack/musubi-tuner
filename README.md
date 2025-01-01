@@ -87,6 +87,7 @@ Latent pre-caching is required. Create the cache using the following command:
 git clone https://huggingface.co/datasets/svjack/Genshin-Impact-XiangLing-animatediff-with-score-organized
 ```
 
+- Video Dataset
 ```python
 from moviepy.editor import VideoFileClip
 import os
@@ -160,8 +161,122 @@ config = generate_video_config(video_path, save_path)
 
 - add Genshin-Impact-XiangLing-animatediff-with-score-organized as video_directory
 
+- Image Datasetv
+```python
+import os
+from moviepy.editor import VideoFileClip  # 使用 moviepy.editor 中的 VideoFileClip
+from tqdm import tqdm
+import shutil
+
+def extract_first_frame_and_copy_txt(input_path, output_path):
+    """
+    遍历输入路径中的所有视频文件，当有对应的 .txt 文件时，
+    将视频的第一帧保存为 .png 文件，并将对应的 .txt 文件拷贝到输出路径。
+
+    :param input_path: 输入路径，包含视频和 .txt 文件
+    :param output_path: 输出路径，保存 .png 和 .txt 文件
+    """
+    # 确保输出路径存在
+    os.makedirs(output_path, exist_ok=True)
+
+    # 获取输入路径中的所有文件
+    files = os.listdir(input_path)
+    video_files = [f for f in files if f.endswith(('.mp4', '.avi', '.mov', '.mkv'))]
+
+    # 使用 tqdm 显示进度
+    for video_file in tqdm(video_files, desc="Processing videos"):
+        video_name = os.path.splitext(video_file)[0]
+        txt_file = f"{video_name}.txt"
+
+        # 检查是否存在对应的 .txt 文件
+        if txt_file in files:
+            # 视频文件路径
+            video_path = os.path.join(input_path, video_file)
+            # 输出 .png 文件路径
+            png_output_path = os.path.join(output_path, f"{video_name}.png")
+            # 输出 .txt 文件路径
+            txt_output_path = os.path.join(output_path, txt_file)
+
+            try:
+                # 使用 moviepy 提取视频的第一帧
+                with VideoFileClip(video_path) as clip:
+                    frame = clip.get_frame(0)  # 获取第一帧
+                    clip.save_frame(png_output_path, t=0)  # 保存为 .png 文件
+
+                # 拷贝对应的 .txt 文件
+                shutil.copy2(os.path.join(input_path, txt_file), txt_output_path)
+
+                print(f"Processed: {video_file} -> {png_output_path}, {txt_file} -> {txt_output_path}")
+            except Exception as e:
+                print(f"Error processing {video_file}: {e}")
+        else:
+            print(f"Skipped: {video_file} (no corresponding .txt file)")
+
+input_path = "Genshin-Impact-XiangLing-animatediff-with-score-organized/"
+output_path = "Genshin-Impact-XiangLing-animatediff-with-score-organized-Image"
+extract_first_frame_and_copy_txt(input_path, output_path)
+
+import os
+from PIL import Image
+import toml  # 需要安装 toml 库
+
+def generate_image_config(image_path, save_path=None):
+    # 加载图片
+    img = Image.open(image_path)
+
+    # 获取图片的分辨率（长宽）
+    width, height = img.size
+
+    # 构建 TOML 格式的配置字典
+    config = {
+        "general": {
+            "resolution": [width, height],
+            "caption_extension": ".txt",
+            "batch_size": 1,
+            "enable_bucket": True,
+            "bucket_no_upscale": False,
+        },
+        "datasets": [
+            {
+                "image_directory": os.path.dirname(image_path),
+                # 移除了 image_files 字段
+            }
+        ],
+    }
+
+    # 将配置字典转换为 TOML 格式字符串
+    config_str = toml.dumps(config)
+
+    # 打印生成的配置
+    print("Generated Configuration (TOML):")
+    print(config_str)
+
+    # 如果提供了保存路径，将配置保存到本地文件
+    if save_path:
+        with open(save_path, 'w') as f:
+            toml.dump(config, f)
+        print(f"Configuration saved to {save_path}")
+
+    # 关闭图片
+    img.close()
+
+    return config_str
+
+# 示例使用
+import pathlib
+image_path = str(list(pathlib.Path("Genshin-Impact-XiangLing-animatediff-with-score-organized-Image").rglob("*.png"))[0])
+save_path = "image_config.toml"  # 配置保存路径，可选
+# 生成并保存配置
+config = generate_image_config(image_path, save_path)
+```
+
+- Video
 ```bash
 python cache_latents.py --dataset_config video_config.toml --vae ckpts/hunyuan-video-t2v-720p/vae/pytorch_model.pt --vae_chunk_size 32 --vae_tiling
+```
+- Image
+```
+python cache_latents.py --dataset_config image_config.toml --vae ckpts/hunyuan-video-t2v-720p/vae/pytorch_model.pt --vae_chunk_size 32 --vae_tiling
 ```
 
 ```bash
@@ -178,8 +293,14 @@ Use `--debug_mode image` to display dataset images and captions in a new window,
 
 Text Encoder output pre-caching is required. Create the cache using the following command:
 
+- Video
 ```bash
 python cache_text_encoder_outputs.py --dataset_config video_config.toml  --text_encoder1 ckpts/text_encoder --text_encoder2 ckpts/text_encoder_2 --batch_size 16
+```
+
+- Image
+```bash
+python cache_text_encoder_outputs.py --dataset_config image_config.toml  --text_encoder1 ckpts/text_encoder --text_encoder2 ckpts/text_encoder_2 --batch_size 16
 ```
 
 ```bash
