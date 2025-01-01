@@ -616,6 +616,70 @@ python hv_generate_video.py \
 https://github.com/user-attachments/assets/5e8bdcf0-f590-4441-b47b-55e6af8f4cf3
 
 
+```baah
+python hv_generate_video.py \
+    --fp8 \
+    --video_size 544 960 \
+    --video_length 60 \
+    --infer_steps 30 \
+    --prompt "ZHONGLI\\(genshin impact\\) with NING GUANG\\(genshin impact\\) in red cheongsam. cook rice in a pot" \
+    --save_path . \
+    --output_type both \
+    --dit ckpts/hunyuan-video-t2v-720p/transformers/mp_rank_00_model_states.pt \
+    --attn_mode sdpa \
+    --vae ckpts/hunyuan-video-t2v-720p/vae/pytorch_model.pt \
+    --vae_chunk_size 32 \
+    --vae_spatial_tile_sample_min_size 128 \
+    --text_encoder1 ckpts/text_encoder \
+    --text_encoder2 ckpts/text_encoder_2 \
+    --seed 1234 \
+    --lora_multiplier 1.0 \
+    --lora_weight zhongli_ningguang_couple_im_lora_dir/zhongli_ningguang_couple_im_lora-000004.safetensors
+```
+
+```baah
+python hv_generate_video.py \
+    --fp8 \
+    --video_size 544 960 \
+    --video_length 60 \
+    --infer_steps 30 \
+    --prompt "ZHONGLI\\(genshin impact\\). drink water, dynamic" \
+    --save_path . \
+    --output_type both \
+    --dit ckpts/hunyuan-video-t2v-720p/transformers/mp_rank_00_model_states.pt \
+    --attn_mode sdpa \
+    --vae ckpts/hunyuan-video-t2v-720p/vae/pytorch_model.pt \
+    --vae_chunk_size 32 \
+    --vae_spatial_tile_sample_min_size 128 \
+    --text_encoder1 ckpts/text_encoder \
+    --text_encoder2 ckpts/text_encoder_2 \
+    --seed 1234 \
+    --lora_multiplier 1.0 \
+    --lora_weight zhongli_ningguang_couple_im_lora_dir/zhongli_ningguang_couple_im_lora-000004.safetensors
+```
+
+```baah
+python hv_generate_video.py \
+    --fp8 \
+    --video_size 544 960 \
+    --video_length 60 \
+    --infer_steps 30 \
+    --prompt "NING GUANG\\(genshin impact\\) in red cheongsam. eat bread, dynamic" \
+    --save_path . \
+    --output_type both \
+    --dit ckpts/hunyuan-video-t2v-720p/transformers/mp_rank_00_model_states.pt \
+    --attn_mode sdpa \
+    --vae ckpts/hunyuan-video-t2v-720p/vae/pytorch_model.pt \
+    --vae_chunk_size 32 \
+    --vae_spatial_tile_sample_min_size 128 \
+    --text_encoder1 ckpts/text_encoder \
+    --text_encoder2 ckpts/text_encoder_2 \
+    --seed 1234 \
+    --lora_multiplier 1.0 \
+    --lora_weight zhongli_ningguang_couple_im_lora_dir/zhongli_ningguang_couple_im_lora-000004.safetensors
+```
+
+
 ```bash
 python hv_generate_video.py --fp8 --video_size 544 960 --video_length 5 --infer_steps 30 
     --prompt "A cat walks on the grass, realistic style."  --save_path path/to/save/dir --output_type both 
