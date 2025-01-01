@@ -400,6 +400,58 @@ Appropriate learning rates, training steps, timestep distribution, loss weightin
 Generate videos using the following command:
 
 ```bash
+python hv_generate_video.py \
+    --fp8 \
+    --video_size 544 960 \
+    --video_length 60 \
+    --infer_steps 30 \
+    --prompt "solo,Xiangling, cook rice in a pot ,genshin impact ,1girl,highres," \
+    --save_path . \
+    --output_type both \
+    --dit ckpts/hunyuan-video-t2v-720p/transformers/mp_rank_00_model_states.pt \
+    --attn_mode sdpa \
+    --vae ckpts/hunyuan-video-t2v-720p/vae/pytorch_model.pt \
+    --vae_chunk_size 32 \
+    --vae_spatial_tile_sample_min_size 128 \
+    --text_encoder1 ckpts/text_encoder \
+    --text_encoder2 ckpts/text_encoder_2 \
+    --seed 1234 \
+    --lora_multiplier 1.0 \
+    --lora_weight xiangling_im_lora_dir/xiangling_im_lora-000003.safetensors
+```
+
+
+https://github.com/user-attachments/assets/fe15b82c-ffa3-4820-afe5-1454762c7ec6
+
+
+```bash
+python hv_generate_video.py \
+    --fp8 \
+    --video_size 544 960 \
+    --video_length 60 \
+    --infer_steps 30 \
+    --prompt "solo,Xiangling, drink water, (genshin impact) ,1girl,highres, dynamic" \
+    --save_path . \
+    --output_type both \
+    --dit ckpts/hunyuan-video-t2v-720p/transformers/mp_rank_00_model_states.pt \
+    --attn_mode sdpa \
+    --vae ckpts/hunyuan-video-t2v-720p/vae/pytorch_model.pt \
+    --vae_chunk_size 32 \
+    --vae_spatial_tile_sample_min_size 128 \
+    --text_encoder1 ckpts/text_encoder \
+    --text_encoder2 ckpts/text_encoder_2 \
+    --seed 1234 \
+    --lora_multiplier 1.0 \
+    --lora_weight xiangling_im_lora_dir/xiangling_im_lora-000003.safetensors
+```
+
+
+
+
+https://github.com/user-attachments/assets/5e8bdcf0-f590-4441-b47b-55e6af8f4cf3
+
+
+```bash
 python hv_generate_video.py --fp8 --video_size 544 960 --video_length 5 --infer_steps 30 
     --prompt "A cat walks on the grass, realistic style."  --save_path path/to/save/dir --output_type both 
     --dit path/to/ckpts/hunyuan-video-t2v-720p/transformers/mp_rank_00_model_states.pt --attn_mode sdpa 
