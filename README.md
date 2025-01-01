@@ -317,7 +317,7 @@ For systems with limited VRAM (less than ~16GB), use `--fp8_llm` to run the LLM 
 
 Start training using the following command (input as a single line):
 
-- In A6000
+- Video In A6000
 ```bash
 accelerate launch --num_cpu_threads_per_process 1 --mixed_precision bf16 hv_train_network.py \
     --dit ckpts/hunyuan-video-t2v-720p/transformers/mp_rank_00_model_states.pt \
@@ -339,6 +339,30 @@ accelerate launch --num_cpu_threads_per_process 1 --mixed_precision bf16 hv_trai
     --seed 42 \
     --output_dir xiangling_lora_dir \
     --output_name xiangling_lora
+```
+
+- Image in RTX 4090
+```bash
+accelerate launch --num_cpu_threads_per_process 1 --mixed_precision bf16 hv_train_network.py \
+    --dit ckpts/hunyuan-video-t2v-720p/transformers/mp_rank_00_model_states.pt \
+    --dataset_config image_config.toml \
+    --sdpa \
+    --mixed_precision bf16 \
+    --fp8_base \
+    --optimizer_type adamw8bit \
+    --learning_rate 1e-3 \
+    --gradient_checkpointing \
+    --max_data_loader_n_workers 2 \
+    --persistent_data_loader_workers \
+    --network_module networks.lora \
+    --network_dim 32 \
+    --timestep_sampling sigmoid \
+    --discrete_flow_shift 1.0 \
+    --max_train_epochs 16 \
+    --save_every_n_epochs 1 \
+    --seed 42 \
+    --output_dir xiangling_im_lora_dir \
+    --output_name xiangling_im_lora
 ```
 
 ```bash
