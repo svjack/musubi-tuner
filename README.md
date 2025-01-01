@@ -161,7 +161,7 @@ config = generate_video_config(video_path, save_path)
 
 - add Genshin-Impact-XiangLing-animatediff-with-score-organized as video_directory
 
-- Image Datasetv
+- Image Dataset
 ```python
 import os
 from moviepy.editor import VideoFileClip  # 使用 moviepy.editor 中的 VideoFileClip
@@ -269,14 +269,150 @@ save_path = "image_config.toml"  # 配置保存路径，可选
 # 生成并保存配置
 config = generate_image_config(image_path, save_path)
 ```
+- Image Dataset
+```python
+from datasets import load_dataset
+image_ds = load_dataset("svjack/Genshin-Impact-ZhongLi-NingGuang-Couple-Image")
+image_df = image_ds["train"].to_pandas()
+man_prompt = "ZHONGLI\\(genshin impact\\)."
+woman_prompt = "NING GUANG\\(genshin impact\\) in red cheongsam."
+couple_prompt = "ZHONGLI\\(genshin impact\\) with NING GUANG\\(genshin impact\\) in red cheongsam."
+image_df["typed_prompt"] = image_df.apply(
+    lambda x: couple_prompt + " " + x["action"] if x["image_type"] == "couple" else (
+      man_prompt + " " + x["action"]  if x["image_type"] == "man" else woman_prompt + " " + x["action"]
+    ), axis = 1
+)
+image_df["typed_prompt"].value_counts()
+
+from PIL import Image
+import io
+
+def bytes_to_pil_image(image_bytes):
+    """
+    将 bytes 字符串转换为 PIL Image 对象。
+
+    参数:
+        image_bytes (bytes): 图像的 bytes 数据。
+
+    返回:
+        PIL.Image.Image: 转换后的 PIL Image 对象。
+    """
+    # 使用 io.BytesIO 将 bytes 数据转换为文件类对象
+    image_file = io.BytesIO(image_bytes)
+
+    # 使用 PIL.Image.open 打开图像
+    pil_image = Image.open(image_file)
+
+    return pil_image
+
+image_df["image_obj"] = image_df["image"].map(lambda x: bytes_to_pil_image(x["bytes"]))
+
+image_df[["image_obj", "typed_prompt"]]
+
+
+import os
+import uuid
+from PIL import Image
+
+def save_image_and_text(image_df, output_dir):
+    """
+    将 DataFrame 中的 PIL 对象和文本保存为 PNG 和 TXT 文件。
+
+    参数:
+        image_df (pd.DataFrame): 包含 "image_obj" 和 "typed_prompt" 列的 DataFrame。
+        output_dir (str): 输出文件的目录路径。
+
+    返回:
+        None
+    """
+    # 确保输出目录存在
+    os.makedirs(output_dir, exist_ok=True)
+
+    # 按行迭代 DataFrame
+    for _, row in image_df.iterrows():
+        # 生成唯一的文件名（基于 UUID）
+        file_name = str(uuid.uuid4())
+
+        # 保存 PIL 对象为 PNG 文件
+        image_path = os.path.join(output_dir, f"{file_name}.png")
+        row["image_obj"].save(image_path)
+
+        # 保存文本为 TXT 文件
+        text_path = os.path.join(output_dir, f"{file_name}.txt")
+        with open(text_path, "w", encoding="utf-8") as f:
+            f.write(row["typed_prompt"])
+
+        print(f"Saved: {file_name}.png and {file_name}.txt")
+
+# 示例调用
+save_image_and_text(image_df[["image_obj", "typed_prompt"]], "zhongli_ningguang_couple_img")
+
+
+import os
+from PIL import Image
+import toml  # 需要安装 toml 库
+
+def generate_image_config(image_path, save_path=None):
+    # 加载图片
+    img = Image.open(image_path)
+
+    # 获取图片的分辨率（长宽）
+    width, height = img.size
+
+    # 构建 TOML 格式的配置字典
+    config = {
+        "general": {
+            "resolution": [width, height],
+            "caption_extension": ".txt",
+            "batch_size": 1,
+            "enable_bucket": True,
+            "bucket_no_upscale": False,
+        },
+        "datasets": [
+            {
+                "image_directory": os.path.dirname(image_path),
+                # 移除了 image_files 字段
+            }
+        ],
+    }
+
+    # 将配置字典转换为 TOML 格式字符串
+    config_str = toml.dumps(config)
+
+    # 打印生成的配置
+    print("Generated Configuration (TOML):")
+    print(config_str)
+
+    # 如果提供了保存路径，将配置保存到本地文件
+    if save_path:
+        with open(save_path, 'w') as f:
+            toml.dump(config, f)
+        print(f"Configuration saved to {save_path}")
+
+    # 关闭图片
+    img.close()
+
+    return config_str
+
+# 示例使用
+import pathlib
+image_path = str(list(pathlib.Path("zhongli_ningguang_couple_img").rglob("*.png"))[0])
+save_path = "zhongning_image_config.toml"  # 配置保存路径，可选
+# 生成并保存配置
+config = generate_image_config(image_path, save_path)
+```
 
 - Video
 ```bash
 python cache_latents.py --dataset_config video_config.toml --vae ckpts/hunyuan-video-t2v-720p/vae/pytorch_model.pt --vae_chunk_size 32 --vae_tiling
 ```
 - Image
-```
+```bash
 python cache_latents.py --dataset_config image_config.toml --vae ckpts/hunyuan-video-t2v-720p/vae/pytorch_model.pt --vae_chunk_size 32 --vae_tiling
+```
+- Image
+```bash
+python cache_latents.py --dataset_config zhongning_image_config.toml --vae ckpts/hunyuan-video-t2v-720p/vae/pytorch_model.pt --vae_chunk_size 32 --vae_tiling
 ```
 
 ```bash
@@ -301,6 +437,11 @@ python cache_text_encoder_outputs.py --dataset_config video_config.toml  --text_
 - Image
 ```bash
 python cache_text_encoder_outputs.py --dataset_config image_config.toml  --text_encoder1 ckpts/text_encoder --text_encoder2 ckpts/text_encoder_2 --batch_size 16
+```
+
+- Image
+```bash
+python cache_text_encoder_outputs.py --dataset_config zhongning_image_config.toml  --text_encoder1 ckpts/text_encoder --text_encoder2 ckpts/text_encoder_2 --batch_size 16
 ```
 
 ```bash
@@ -363,6 +504,30 @@ accelerate launch --num_cpu_threads_per_process 1 --mixed_precision bf16 hv_trai
     --seed 42 \
     --output_dir xiangling_im_lora_dir \
     --output_name xiangling_im_lora
+```
+
+- Image in RTX 4090
+```bash
+accelerate launch --num_cpu_threads_per_process 1 --mixed_precision bf16 hv_train_network.py \
+    --dit ckpts/hunyuan-video-t2v-720p/transformers/mp_rank_00_model_states.pt \
+    --dataset_config zhongning_image_config.toml \
+    --sdpa \
+    --mixed_precision bf16 \
+    --fp8_base \
+    --optimizer_type adamw8bit \
+    --learning_rate 1e-3 \
+    --gradient_checkpointing \
+    --max_data_loader_n_workers 2 \
+    --persistent_data_loader_workers \
+    --network_module networks.lora \
+    --network_dim 32 \
+    --timestep_sampling sigmoid \
+    --discrete_flow_shift 1.0 \
+    --max_train_epochs 16 \
+    --save_every_n_epochs 1 \
+    --seed 42 \
+    --output_dir zhongli_ningguang_couple_im_lora_dir \
+    --output_name zhongli_ningguang_couple_im_lora
 ```
 
 ```bash
