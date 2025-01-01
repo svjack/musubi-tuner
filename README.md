@@ -46,7 +46,7 @@ Optionally, you can use FlashAttention and SageAttention (see [SageAttention Ins
 Additionally, install `ascii-magic` (used for dataset verification), `matplotlib` (used for timestep visualization), and `tensorboard` (used for logging training progress) as needed:
 
 ```bash
-pip install ascii-magic matplotlib tensorboard
+pip install ascii-magic matplotlib tensorboard huggingface_hub
 ```
 
 ### Model Download
