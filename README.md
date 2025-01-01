@@ -48,6 +48,7 @@ Additionally, install `ascii-magic` (used for dataset verification), `matplotlib
 ```bash
 pip install ascii-magic matplotlib tensorboard huggingface_hub
 pip install moviepy==1.0.3
+pip install sageattention==1.0.6
 ```
 
 ### Model Download
