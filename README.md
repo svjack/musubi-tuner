@@ -29,7 +29,7 @@ conda activate musubi-tuner
 pip install ipykernel
 python -m ipykernel install --user --name musubi-tuner --display-name "musubi-tuner"
 
-pip install torch torchvision
+pip install torch==2.5.0 torchvision
 
 #pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
 ```
