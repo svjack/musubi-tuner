@@ -186,3 +186,28 @@ save_image_and_text(dss["train"], output_dir)
 output_dir = "genshin_impact_single_images_and_texts/"
 config_save_path = "genshin_impact_image_config.toml"
 generate_image_config(output_dir, config_save_path)
+
+python cache_latents.py --dataset_config genshin_impact_image_config.toml --vae ckpts/hunyuan-video-t2v-720p/vae/pytorch_model.pt --vae_chunk_size 32 --vae_tiling
+
+python cache_text_encoder_outputs.py --dataset_config genshin_impact_image_config.toml  --text_encoder1 ckpts/text_encoder --text_encoder2 ckpts/text_encoder_2 --batch_size 16
+
+accelerate launch --num_cpu_threads_per_process 1 --mixed_precision bf16 hv_train_network.py \
+    --dit ckpts/hunyuan-video-t2v-720p/transformers/mp_rank_00_model_states.pt \
+    --dataset_config genshin_impact_image_config.toml \
+    --sdpa \
+    --mixed_precision bf16 \
+    --fp8_base \
+    --optimizer_type adamw8bit \
+    --learning_rate 1e-3 \
+    --gradient_checkpointing \
+    --max_data_loader_n_workers 2 \
+    --persistent_data_loader_workers \
+    --network_module networks.lora \
+    --network_dim 32 \
+    --timestep_sampling sigmoid \
+    --discrete_flow_shift 1.0 \
+    --max_train_epochs 16 \
+    --save_every_n_epochs 1 \
+    --seed 42 \
+    --output_dir genshin_impact_single_im_lora_dir \
+    --output_name genshin_impact_single_im_lora
