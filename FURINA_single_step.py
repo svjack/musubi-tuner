@@ -216,3 +216,22 @@ accelerate launch --num_cpu_threads_per_process 1 --mixed_precision bf16 hv_trai
     --seed 42 \
     --output_dir FURINA_im_lora_dir \
     --output_name FURINA_im_lora
+
+python hv_generate_video.py \
+    --fp8 \
+    --video_size 544 960 \
+    --video_length 60 \
+    --infer_steps 30 \
+    --prompt "This is a digital anime-style drawing of FURINA, a young woman with shoulder-length, wavy, white hair accented with light blue streaks. She has large, expressive blue eyes and a gentle smile. She is leaning on her elbow on a bed with a white sheet, wearing a loose white t-shirt. The background shows a softly lit room with a wooden bedside table and a lamp emitting a warm glow. The overall atmosphere is cozy and serene." \
+    --save_path . \
+    --output_type both \
+    --dit ckpts/hunyuan-video-t2v-720p/transformers/mp_rank_00_model_states.pt \
+    --attn_mode sdpa \
+    --vae ckpts/hunyuan-video-t2v-720p/vae/pytorch_model.pt \
+    --vae_chunk_size 32 \
+    --vae_spatial_tile_sample_min_size 128 \
+    --text_encoder1 ckpts/text_encoder \
+    --text_encoder2 ckpts/text_encoder_2 \
+    --seed 1234 \
+    --lora_multiplier 1.0 \
+    --lora_weight FURINA_im_lora_dir/FURINA_im_lora-000003.safetensors
