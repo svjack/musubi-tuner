@@ -234,4 +234,4 @@ python hv_generate_video.py \
     --text_encoder2 ckpts/text_encoder_2 \
     --seed 1234 \
     --lora_multiplier 1.0 \
-    --lora_weight FURINA_im_lora_dir/FURINA_im_lora-000003.safetensors
+    --lora_weight FURINA_im_lora_dir/FURINA_im_lora-000010.safetensors
