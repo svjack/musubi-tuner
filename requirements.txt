@@ -16,3 +16,16 @@ voluptuous==0.15.2
 # ascii-magic==2.3.0
 # matplotlib==3.10.0
 # tensorboard
+
+ascii-magic 
+matplotlib 
+tensorboard 
+huggingface_hub
+moviepy==1.0.3
+sageattention==1.0.6
+
+torch==2.5.0 
+torchvision
+
+gradio
+httpx[socks]
