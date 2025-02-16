@@ -669,6 +669,14 @@ python hv_generate_video.py \
 https://github.com/user-attachments/assets/555aa2ea-9a04-4f05-8ab0-6602eeb4c866
 
 
+# Convert
+```bash
+python convert_lora.py --input genshin_impact_ep_landscape_lora_dir/genshin_impact_ep_landscape_lora-000004.safetensors --output genshin_impact_ep_landscape_lora-000004-comfy.safetensor --target other
+```
+- after convert can use in https://github.com/svjack/HunyuanVideoGP by: 
+```bash
+python gradio_server.py --fastest --lora-weight ../work/pixel_hunyuan_video_lora_test/20250216_11-34-50/epoch2/adapter_model.safetensors --lora-multiplier 1
+```
 
 
 ```bash
