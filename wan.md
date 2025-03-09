@@ -244,15 +244,11 @@ def change_resolution_and_save(input_path, output_path, target_width=1024, targe
                 try:
                     clip = VideoFileClip(file_path)
                     total_duration = clip.duration
-                    num_segments = int(total_duration // max_duration)
+                    base_name = os.path.splitext(file)[0]
 
-                    for i in range(num_segments):
-                        start_time = i * max_duration
-                        end_time = min((i+1) * max_duration, total_duration)
-                        sub_clip = clip.subclip(start_time, end_time)
-
-                        base_name = os.path.splitext(file)[0]
-                        output_filename = f"{base_name}_{i}.mp4"
+                    if total_duration <= max_duration:
+                        # Process the entire video
+                        output_filename = f"{base_name}.mp4"
                         output_file_path = os.path.join(output_dir, output_filename)
                         os.makedirs(os.path.dirname(output_file_path), exist_ok=True)
 
@@ -269,7 +265,7 @@ def change_resolution_and_save(input_path, output_path, target_width=1024, targe
                             background[y_offset:y_offset+new_h, x_offset:x_offset+new_w] = resized_img
                             return cv2.cvtColor(background, cv2.COLOR_BGR2RGB)
 
-                        processed_clip = sub_clip.fl_image(process_frame)
+                        processed_clip = clip.fl_image(process_frame)
                         fps = processed_clip.fps if processed_clip.fps else 24
                         processed_clip.write_videofile(
                             output_file_path,
@@ -284,8 +280,50 @@ def change_resolution_and_save(input_path, output_path, target_width=1024, targe
                         # Copy corresponding txt file
                         txt_source = os.path.join(root, f"{base_name}.txt")
                         if os.path.exists(txt_source):
-                            txt_target = os.path.join(output_dir, f"{base_name}_{i}.txt")
+                            txt_target = os.path.join(output_dir, f"{base_name}.txt")
                             shutil.copy2(txt_source, txt_target)
+                    else:
+                        # Split and process the video
+                        num_segments = int(total_duration // max_duration)
+                        for i in range(num_segments):
+                            start_time = i * max_duration
+                            end_time = min((i+1) * max_duration, total_duration)
+                            sub_clip = clip.subclip(start_time, end_time)
+
+                            output_filename = f"{base_name}_{i}.mp4"
+                            output_file_path = os.path.join(output_dir, output_filename)
+                            os.makedirs(os.path.dirname(output_file_path), exist_ok=True)
+
+                            def process_frame(frame):
+                                img = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+                                h, w = img.shape[:2]
+                                scale = min(target_width / w, target_height / h)
+                                new_w = int(w * scale)
+                                new_h = int(h * scale)
+                                resized_img = cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_AREA)
+                                background = np.zeros((target_height, target_width, 3), dtype=np.uint8)
+                                x_offset = (target_width - new_w) // 2
+                                y_offset = (target_height - new_h) // 2
+                                background[y_offset:y_offset+new_h, x_offset:x_offset+new_w] = resized_img
+                                return cv2.cvtColor(background, cv2.COLOR_BGR2RGB)
+
+                            processed_clip = sub_clip.fl_image(process_frame)
+                            fps = processed_clip.fps if processed_clip.fps else 24
+                            processed_clip.write_videofile(
+                                output_file_path,
+                                codec='libx264',
+                                fps=fps,
+                                preset='slow',
+                                threads=4,
+                                audio=False
+                            )
+                            processed_clip.close()
+
+                            # Copy corresponding txt file
+                            txt_source = os.path.join(root, f"{base_name}.txt")
+                            if os.path.exists(txt_source):
+                                txt_target = os.path.join(output_dir, f"{base_name}_{i}.txt")
+                                shutil.copy2(txt_source, txt_target)
 
                     clip.close()
                 except Exception as e:
