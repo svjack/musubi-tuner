@@ -58,6 +58,19 @@ huggingface-cli download --repo-type dataset svjack/Genshin-Impact-Portrait-with
 wget https://huggingface.co/datasets/svjack/Genshin-Impact-Portrait-with-Tags-Filtered-IID-Gender-SP/resolve/main/genshin_impact_RAIDEN_SHOGUN_image_config.toml
 ```
 
+### 3.2 genshin_impact_RAIDEN_SHOGUN_image_config.toml
+```toml
+[[datasets]]
+image_directory = "genshin_impact_RAIDEN_SHOGUN_images_and_texts"
+
+[general]
+resolution = [ 1024, 1024,]
+caption_extension = ".txt"
+batch_size = 1
+enable_bucket = true
+bucket_no_upscale = false
+```
+
 ---
 
 ## 4. Model Preparation
