@@ -58,3 +58,22 @@ accelerate launch --num_cpu_threads_per_process 1 --mixed_precision bf16 wan_tra
     --max_train_epochs 16 --save_every_n_epochs 1 --seed 42 \
     --output_dir pixel_outputs --output_name pixel_w14_lora
 ```
+
+```
+##### 应该先聚类 再精准
+
+#### 第一帧 图片 聚类 或者 分多帧聚类
+
+https://github.com/deepghs/imgutils
+
+from imgutils.metrics import lpips_clustering
+
+images = [f'lpips/{i}.jpg' for i in range(1, 10)]
+print(images)
+# ['lpips/1.jpg', 'lpips/2.jpg', 'lpips/3.jpg', 'lpips/4.jpg', 'lpips/5.jpg', 'lpips/6.jpg', 'lpips/7.jpg', 'lpips/8.jpg', 'lpips/9.jpg']
+print(lpips_clustering(images))  # -1 means noises, the same as that in sklearn
+# [0, 0, 0, 1, 1, -1, -1, -1, -1]
+
+##### 可以进行尝试
+https://huggingface.co/datasets/svjack/Beyond_the_Boundary_Videos_Captioned
+```
