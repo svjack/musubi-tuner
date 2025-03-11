@@ -77,3 +77,82 @@ print(lpips_clustering(images))  # -1 means noises, the same as that in sklearn
 ##### 可以进行尝试
 https://huggingface.co/datasets/svjack/Beyond_the_Boundary_Videos_Captioned
 ```
+
+```python
+import os
+from moviepy.editor import VideoFileClip
+from imgutils.metrics import lpips_clustering
+import shutil
+from tqdm import tqdm
+
+def extract_first_frame(video_path, output_path):
+    """
+    提取视频的第一帧并保存为图片
+    :param video_path: 视频文件路径
+    :param output_path: 输出图片路径
+    """
+    clip = VideoFileClip(video_path)
+    frame = clip.get_frame(0)  # 获取第一帧
+    clip.close()
+    from imageio import imwrite
+    imwrite(output_path, frame)
+
+def cluster_mp4_files(input_folder, output_folder):
+    """
+    对 MP4 文件进行聚类，并将第一帧截图保存到对应子文件夹
+    :param input_folder: 包含 MP4 文件的文件夹
+    :param output_folder: 输出文件夹
+    """
+    # 获取所有 MP4 文件
+    mp4_files = [f for f in os.listdir(input_folder) if f.endswith('.mp4')]
+    mp4_files.sort()  # 按文件名排序
+
+    # 提取第一帧并保存到临时文件夹
+    temp_image_folder = os.path.join(output_folder, 'temp_images')
+    os.makedirs(temp_image_folder, exist_ok=True)
+    image_paths = []
+    print("Extracting first frames from videos...")
+    for mp4_file in tqdm(mp4_files, desc="Extracting frames"):
+        image_path = os.path.join(temp_image_folder, f"{os.path.splitext(mp4_file)[0]}.jpg")
+        extract_first_frame(os.path.join(input_folder, mp4_file), image_path)
+        image_paths.append(image_path)
+
+    # 对图片进行聚类
+    print("Clustering images...")
+    labels = lpips_clustering(image_paths)
+
+    # 根据聚类结果将 MP4 文件和截图拷贝到对应子文件夹
+    print("Organizing files into clusters...")
+    for mp4_file, label in tqdm(zip(mp4_files, labels), desc="Organizing files", total=len(mp4_files)):
+        if label == -1:
+            subfolder = 'noise'  # 噪声文件
+        else:
+            subfolder = f'cluster_{label}'  # 聚类文件夹
+
+        # 创建子文件夹
+        target_folder = os.path.join(output_folder, subfolder)
+        os.makedirs(target_folder, exist_ok=True)
+
+        # 拷贝 MP4 文件
+        shutil.copy(
+            os.path.join(input_folder, mp4_file),
+            os.path.join(target_folder, mp4_file)
+        )
+
+        # 拷贝截图文件
+        image_file = f"{os.path.splitext(mp4_file)[0]}.jpg"
+        shutil.copy(
+            os.path.join(temp_image_folder, image_file),
+            os.path.join(target_folder, image_file)
+        )
+
+    # 删除临时图片文件夹
+    shutil.rmtree(temp_image_folder)
+    print("Clustering and file organization completed!")
+
+# 示例调用
+input_folder = 'Beyond_the_Boundary_Videos'  # 替换为你的 MP4 文件夹路径
+output_folder = 'Beyond_the_Boundary_Videos_Clustered'  # 替换为你的输出文件夹路径
+cluster_mp4_files(input_folder, output_folder)
+```
+
