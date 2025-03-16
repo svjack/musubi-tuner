@@ -433,6 +433,20 @@ accelerate launch --num_cpu_threads_per_process 1 --mixed_precision bf16 wan_tra
     --output_dir pixel_outputs --output_name pixel_w14_lora
 ```
 
+```bash
+python wan_generate_video.py --fp8 --video_size 832 480 --video_length 45 --infer_steps 20 \
+--save_path save --output_type both \
+--task i2v-14B --t5 models_t5_umt5-xxl-enc-bf16.pth --clip models_clip_open-clip-xlm-roberta-large-vit-huge-14.pth \
+--dit wan2.1_i2v_480p_14B_fp8_e4m3fn.safetensors --vae Wan2.1_VAE.pth \
+--t5 models_t5_umt5-xxl-enc-bf16.pth \
+--attn_mode torch \
+--lora_weight pixel_outputs/pixel_w14_lora-000008.safetensors \
+--lora_multiplier 1.0 \
+--image_path "pixel_im1.png" \
+--prompt "The video showcases a young girl with orange hair and blue eyes, sitting on the ground. She's wearing a colorful dress with a brown skirt and a yellow top, along with red shoes. The girl is holding a red cup with a straw and has a green hat with a red band. The background features a pink sky with hearts and a yellow plant."
+
+```
+
 
 ## 9. Conclusion
 
