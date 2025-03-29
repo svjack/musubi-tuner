@@ -447,6 +447,175 @@ python wan_generate_video.py --fp8 --video_size 832 480 --video_length 45 --infe
 
 ```
 
+```python
+import os
+import cv2
+import numpy as np
+from moviepy.editor import VideoFileClip
+from tqdm import tqdm
+import shutil
+
+def change_resolution_and_save(input_path, output_path, target_width=1024, target_height=768, max_duration=4, default_txt_content=""):
+    """Process images and videos to target resolution and split videos into segments.
+    
+    Args:
+        input_path: Path to input directory
+        output_path: Path to output directory
+        target_width: Target width for resizing
+        target_height: Target height for resizing
+        max_duration: Maximum duration for video segments (in seconds)
+        default_txt_content: Default text content to use when txt file doesn't exist
+    """
+    os.makedirs(output_path, exist_ok=True)
+
+    for root, dirs, files in os.walk(input_path):
+        for file in tqdm(files, desc="Processing files"):
+            file_path = os.path.join(root, file)
+            relative_path = os.path.relpath(file_path, input_path)
+            output_dir = os.path.dirname(os.path.join(output_path, relative_path))
+
+            # Process images
+            if file.lower().endswith(('.png', '.jpg', '.jpeg')):
+                try:
+                    img = cv2.imread(file_path)
+                    h, w = img.shape[:2]
+                    scale = min(target_width / w, target_height / h)
+                    new_w = int(w * scale)
+                    new_h = int(h * scale)
+                    resized_img = cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_AREA)
+                    background = np.zeros((target_height, target_width, 3), dtype=np.uint8)
+                    x_offset = (target_width - new_w) // 2
+                    y_offset = (target_height - new_h) // 2
+                    background[y_offset:y_offset+new_h, x_offset:x_offset+new_w] = resized_img
+                    output_file_path = os.path.join(output_path, relative_path)
+                    os.makedirs(os.path.dirname(output_file_path), exist_ok=True)
+                    cv2.imwrite(output_file_path, background)
+
+                    # Handle corresponding txt file
+                    base_name = os.path.splitext(file)[0]
+                    txt_source = os.path.join(root, f"{base_name}.txt")
+                    txt_target = os.path.join(output_dir, f"{base_name}.txt")
+                    
+                    if os.path.exists(txt_source):
+                        shutil.copy2(txt_source, txt_target)
+                    else:
+                        # Create txt file with default content if it doesn't exist
+                        with open(txt_target, 'w') as f:
+                            f.write(default_txt_content)
+                except Exception as e:
+                    print(f"Failed to process image {file_path}: {e}")
+
+            # Process videos
+            elif file.lower().endswith('.mp4'):
+                try:
+                    clip = VideoFileClip(file_path)
+                    total_duration = clip.duration
+                    base_name = os.path.splitext(file)[0]
+
+                    if total_duration <= max_duration:
+                        # Process the entire video
+                        output_filename = f"{base_name}.mp4"
+                        output_file_path = os.path.join(output_dir, output_filename)
+                        os.makedirs(os.path.dirname(output_file_path), exist_ok=True)
+
+                        def process_frame(frame):
+                            img = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+                            h, w = img.shape[:2]
+                            scale = min(target_width / w, target_height / h)
+                            new_w = int(w * scale)
+                            new_h = int(h * scale)
+                            resized_img = cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_AREA)
+                            background = np.zeros((target_height, target_width, 3), dtype=np.uint8)
+                            x_offset = (target_width - new_w) // 2
+                            y_offset = (target_height - new_h) // 2
+                            background[y_offset:y_offset+new_h, x_offset:x_offset+new_w] = resized_img
+                            return cv2.cvtColor(background, cv2.COLOR_BGR2RGB)
+
+                        processed_clip = clip.fl_image(process_frame)
+                        fps = processed_clip.fps if processed_clip.fps else 24
+                        processed_clip.write_videofile(
+                            output_file_path,
+                            codec='libx264',
+                            fps=fps,
+                            preset='slow',
+                            threads=4,
+                            audio=False
+                        )
+                        processed_clip.close()
+
+                        # Handle corresponding txt file
+                        txt_source = os.path.join(root, f"{base_name}.txt")
+                        txt_target = os.path.join(output_dir, f"{base_name}.txt")
+                        
+                        if os.path.exists(txt_source):
+                            shutil.copy2(txt_source, txt_target)
+                        else:
+                            # Create txt file with default content if it doesn't exist
+                            with open(txt_target, 'w') as f:
+                                f.write(default_txt_content)
+                    else:
+                        # Split and process the video
+                        num_segments = int(total_duration // max_duration)
+                        for i in range(num_segments):
+                            start_time = i * max_duration
+                            end_time = min((i+1) * max_duration, total_duration)
+                            sub_clip = clip.subclip(start_time, end_time)
+
+                            output_filename = f"{base_name}_{i}.mp4"
+                            output_file_path = os.path.join(output_dir, output_filename)
+                            os.makedirs(os.path.dirname(output_file_path), exist_ok=True)
+
+                            def process_frame(frame):
+                                img = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+                                h, w = img.shape[:2]
+                                scale = min(target_width / w, target_height / h)
+                                new_w = int(w * scale)
+                                new_h = int(h * scale)
+                                resized_img = cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_AREA)
+                                background = np.zeros((target_height, target_width, 3), dtype=np.uint8)
+                                x_offset = (target_width - new_w) // 2
+                                y_offset = (target_height - new_h) // 2
+                                background[y_offset:y_offset+new_h, x_offset:x_offset+new_w] = resized_img
+                                return cv2.cvtColor(background, cv2.COLOR_BGR2RGB)
+
+                            processed_clip = sub_clip.fl_image(process_frame)
+                            fps = processed_clip.fps if processed_clip.fps else 24
+                            processed_clip.write_videofile(
+                                output_file_path,
+                                codec='libx264',
+                                fps=fps,
+                                preset='slow',
+                                threads=4,
+                                audio=False
+                            )
+                            processed_clip.close()
+
+                            # Handle corresponding txt file
+                            txt_source = os.path.join(root, f"{base_name}.txt")
+                            txt_target = os.path.join(output_dir, f"{base_name}_{i}.txt")
+                            
+                            if os.path.exists(txt_source):
+                                shutil.copy2(txt_source, txt_target)
+                            else:
+                                # Create txt file with default content if it doesn't exist
+                                with open(txt_target, 'w') as f:
+                                    f.write(default_txt_content)
+
+                    clip.close()
+                except Exception as e:
+                    print(f"Failed to process video {file_path}: {e}")
+
+# Example usage with default text content
+# Example usage
+change_resolution_and_save(
+    input_path="Genshin_StarRail_Longshu_Sketch_Tail_Videos_Reversed_1_5_seconds",
+    output_path="Genshin_StarRail_Longshu_Sketch_Tail_Videos_Reversed_1_5_seconds_512x384x3",
+    target_width=512,
+    target_height=384,
+    max_duration=3,
+    default_txt_content = "In the style of Long shu Reverse Sketch, This video demonstrates the step-by-step process of converting an anime-style image into a prototype sketch."
+)
+```
 
 ## 9. Conclusion
 
