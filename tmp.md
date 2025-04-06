@@ -156,3 +156,34 @@ output_folder = 'Beyond_the_Boundary_Videos_Clustered'  # 替换为你的输出�
 cluster_mp4_files(input_folder, output_folder)
 ```
 
+```python
+python wan_generate_video.py --fp8 --task t2v-1.3B --video_size 480 832 --video_length 81 --infer_steps 20 \
+--save_path save --output_type both \
+--dit wan2.1_t2v_1.3B_bf16.safetensors --vae Wan2.1_VAE.pth \
+--t5 models_t5_umt5-xxl-enc-bf16.pth \
+--attn_mode torch \
+--lora_weight Miuna_Shiodome_outputs/Miuna_Shiodome_w1_3_lora-000007.safetensors \
+--lora_multiplier 1.0 \
+--prompt "In the style of Nagi no Asukara , The video opens with a close-up of a young girl with short dark hair, wearing a light blue jacket over a pink shirt. She is holding a freshly made burger in her hands."
+
+
+python wan_generate_video.py --fp8 --task t2v-1.3B --video_size 480 832 --video_length 81 --infer_steps 50 \
+--save_path save --output_type both \
+--dit wan2.1_t2v_1.3B_bf16.safetensors --vae Wan2.1_VAE.pth \
+--t5 models_t5_umt5-xxl-enc-bf16.pth \
+--attn_mode torch \
+--lora_weight Miuna_Shiodome_outputs/Miuna_Shiodome_w1_3_lora-000007.safetensors \
+--lora_multiplier 1.0 \
+--prompt "In the style of Nagi no Asukara , The video opens with a close-up of a young girl with short dark hair, wearing a light blue jacket over a pink shirt. She reached for a bouquet of roses. Her hand gently grasped the stems, the motion elegant and deliberate."
+
+
+python wan_generate_video.py --fp8 --task t2v-1.3B --video_size 480 832 --video_length 81 --infer_steps 50 \
+--save_path save --output_type both \
+--dit wan2.1_t2v_1.3B_bf16.safetensors --vae Wan2.1_VAE.pth \
+--t5 models_t5_umt5-xxl-enc-bf16.pth \
+--attn_mode torch \
+--lora_weight Miuna_Shiodome_outputs/Miuna_Shiodome_w1_3_lora-000007.safetensors \
+--lora_multiplier 1.0 \
+--prompt "In the style of Nagi no Asukara , The video opens with a close-up of a young girl with short dark hair, wearing a light blue jacket over a pink shirt. She strolls in the campus. The gentle breeze brushes against her face, making her hair sway softly. Her footsteps are light and slow, as if she is savoring every moment of this campus tour. The sun shines through the leaves, creating dappled patterns on the ground. Around her, students are chatting and laughing, some are hurrying to their next classes, while others are enjoying the pleasant outdoor atmosphere just like her."
+```
+
