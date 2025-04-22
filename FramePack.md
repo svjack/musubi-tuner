@@ -92,6 +92,22 @@ max_frames = 129
 frame_extraction = "full"
 ```
 
+```toml
+[general]
+resolution = [960, 544]
+caption_extension = ".txt"
+batch_size = 1
+enable_bucket = true
+bucket_no_upscale = false
+
+[[datasets]]
+video_directory = "Yi_Chen_Dancing_Animation_Videos_White_Background_Splited_Captioned_960x544x6_upper_60fm"
+cache_directory = "Yi_Chen_Dancing_Animation_Videos_White_Background_Splited_Captioned_960x544x6_upper_60fm_45_cache"
+target_frames = [1, 25, 45]
+max_frames = 45
+frame_extraction = "full"
+```
+
 ```bash
 python fpack_cache_latents.py \
     --dataset_config video_config.toml \
