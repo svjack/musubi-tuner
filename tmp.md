@@ -187,3 +187,19 @@ python wan_generate_video.py --fp8 --task t2v-1.3B --video_size 480 832 --video_
 --prompt "In the style of Nagi no Asukara , The video opens with a close-up of a young girl with short dark hair, wearing a light blue jacket over a pink shirt. She strolls in the campus. The gentle breeze brushes against her face, making her hair sway softly. Her footsteps are light and slow, as if she is savoring every moment of this campus tour. The sun shines through the leaves, creating dappled patterns on the ground. Around her, students are chatting and laughing, some are hurrying to their next classes, while others are enjoying the pleasant outdoor atmosphere just like her."
 ```
 
+```bash
+python wan_cache_latents.py --dataset_config h_video_config.toml --vae Wan2.1_VAE.pth
+python wan_cache_text_encoder_outputs.py --dataset_config h_video_config.toml --t5 models_t5_umt5-xxl-enc-bf16.pth --batch_size 16
+
+accelerate launch --num_cpu_threads_per_process 1 --mixed_precision bf16 wan_train_network.py \
+    --task t2v-1.3B --t5 models_t5_umt5-xxl-enc-bf16.pth \
+    --dit wan2.1_t2v_1.3B_bf16.safetensors \
+    --dataset_config h_video_config.toml --sdpa --mixed_precision bf16 --fp8_base \
+    --optimizer_type adamw8bit --learning_rate 2e-4 --gradient_checkpointing \
+    --max_data_loader_n_workers 2 --persistent_data_loader_workers \
+    --network_module networks.lora_wan --network_dim 32 \
+    --timestep_sampling shift --discrete_flow_shift 3.0 \
+    --max_train_epochs 500 --save_every_n_epochs 1 --seed 42 \
+    --output_dir Hitagi_Senjougahara_outputs --output_name Hitagi_Senjougahara_w1_3_lora
+```
+
