@@ -137,4 +137,24 @@ accelerate launch --num_cpu_threads_per_process 1 --mixed_precision bf16 fpack_t
     --output_dir framepack_yichen_output --output_name framepack-yichen-lora
 ```
 
+```bash
+python fpack_generate_video.py \
+    --dit FramePackI2V_HY/diffusion_pytorch_model-00001-of-00003.safetensors \
+    --vae HunyuanVideo/vae/diffusion_pytorch_model.safetensors \
+    --text_encoder1 HunyuanVideo_repackaged/split_files/text_encoders/llava_llama3_fp16.safetensors \
+    --text_encoder2 HunyuanVideo_repackaged/split_files/text_encoders/clip_l.safetensors \
+    --image_encoder sigclip_vision_384/sigclip_vision_patch14_384.safetensors \
+    --image_path fln.png \
+    --prompt "In the style of Yi Chen Dancing White Background , The character's movements shift dynamically throughout the video, transitioning from poised stillness to lively dance steps. Her expressions evolve seamlessly—starting with focused determination, then flashing surprise as she executes a quick spin, before breaking into a joyful smile mid-leap. Her hands flow through choreographed positions, sometimes extending gracefully like unfolding wings, other times clapping rhythmically against her wrists. During a dramatic hip sway, her fingers fan open near her cheek, then sweep downward as her whole body dips into a playful crouch, the sequins on her costume catching the light with every motion." \
+    --video_size 960 544 --video_seconds 3 --fps 30 --infer_steps 25 \
+    --attn_mode sdpa --fp8_scaled \
+    --vae_chunk_size 32 --vae_spatial_tile_sample_min_size 128 \
+    --save_path save --output_type both \
+    --seed 1234 --lora_multiplier 1.0 --lora_weight framepack_yichen_output/framepack-yichen-lora-000002.safetensors
+```
+
+
+
+
+https://github.com/user-attachments/assets/e695d2a7-4145-4cf2-b9b5-2f4ca764ec02
 
