@@ -337,6 +337,14 @@ change_resolution_and_save(
     target_height=544,
     max_duration=6
 )
+
+change_resolution_and_save(
+    input_path="Sebastian_Michaelis_Videos_Captioned",
+    output_path="Sebastian_Michaelis_Videos_Captioned_512x384x2",
+    target_width=512,
+    target_height=384,
+    max_duration=2
+)
 ```
 
 ### 8.3 Remove Training Directory
@@ -363,6 +371,21 @@ bucket_no_upscale = false
 video_directory = "test-HunyuanVideo-pixelart-videos_960x544x6"
 cache_directory = "test-HunyuanVideo-pixelart-videos_960x544x6_cache"
 target_frames = [1, 25, 45]
+frame_extraction = "head"
+```
+
+```toml
+[general]
+resolution = [512, 384]
+caption_extension = ".txt"
+batch_size = 1
+enable_bucket = true
+bucket_no_upscale = false
+
+[[datasets]]
+video_directory = "Sebastian_Michaelis_Videos_Captioned_512x384x2"
+cache_directory = "Sebastian_Michaelis_Videos_Captioned_512x384x2_cache"
+target_frames = [1, 25]
 frame_extraction = "head"
 ```
 
