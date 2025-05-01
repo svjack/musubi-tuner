@@ -158,6 +158,10 @@ python fpack_generate_video.py \
 
 https://github.com/user-attachments/assets/e695d2a7-4145-4cf2-b9b5-2f4ca764ec02
 
+
+
+<br/>
+
 ```bash
 wget https://huggingface.co/tori29umai/FramePack_LoRA/resolve/main/rotate_landscape_V4.safetensors
 
