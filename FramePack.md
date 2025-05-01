@@ -293,7 +293,7 @@ def get_latest_mp4(save_dir):
 def process_images_and_texts():
     # 输入和输出目录
     input_dir = "Genshin_Impact_Birthday_Art_Images"
-    output_dir = "Genshin_Impact_Birthday_Art_FramePack_Rotate_Dancing_Captioned"
+    output_dir = "Genshin_Impact_Birthday_Art_FramePack_Rotate_Dancing_Captioned_New"
     save_dir = "save"
 
     # 确保输出目录存在
@@ -309,7 +309,7 @@ def process_images_and_texts():
 
 
     # 固定prompt
-    prompt = """In the style of Yi Chen Dancing White Background , The character's movements shift dynamically throughout the video, transitioning from poised stillness to lively dance steps. Her expressions evolve seamlessly—starting with focused determination, then flashing surprise as she executes a quick spin, before breaking into a joyful smile mid-leap. Her hands flow through choreographed positions, sometimes extending gracefully like unfolding wings, other times clapping rhythmically against her wrists. During a dramatic hip sway, her fingers fan open near her cheek, then sweep downward as her whole body dips into a playful crouch, the sequins on her costume catching the light with every motion."""
+    prompt = """The camera smoothly orbits around the center of the scene, keeping the center point fixed and always in view."""
 
     # 使用tqdm显示进度
     for png_file in tqdm(png_files, desc="Processing images"):
@@ -333,7 +333,7 @@ def process_images_and_texts():
             "--image_encoder", "sigclip_vision_384/sigclip_vision_patch14_384.safetensors",
             "--image_path", png_file,
             "--prompt", prompt,
-            "--video_size", "960", "544",
+            "--video_size", "768", "768",
             "--video_seconds", "3",
             "--fps", "30",
             "--infer_steps", "25",
@@ -381,5 +381,6 @@ def process_images_and_texts():
 if __name__ == "__main__":
     process_images_and_texts()
     print("All processing completed!")
+
 
 ```
