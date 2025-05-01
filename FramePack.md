@@ -170,7 +170,7 @@ huggingface-cli download --repo-type dataset \
     svjack/Genshin-Impact-Portrait-with-Tags-Filtered-IID-Gender-SP \
     --include "genshin_impact_NILOU_images_and_texts/*" \
     --local-dir .
-```bash
+```
 
 ```python
 import os
