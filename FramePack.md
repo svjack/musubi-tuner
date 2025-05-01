@@ -272,3 +272,114 @@ if __name__ == "__main__":
     process_images_and_texts()
     print("All processing completed!")
 ```
+
+```python
+#### git clone https://huggingface.co/datasets/svjack/Genshin_Impact_Birthday_Art_Images
+
+import os
+import glob
+import shutil
+from tqdm import tqdm
+import subprocess
+import time
+
+def get_latest_mp4(save_dir):
+    """获取save目录下最新创建的mp4文件"""
+    mp4_files = glob.glob(os.path.join(save_dir, '*.mp4'))
+    if not mp4_files:
+        return None
+    return max(mp4_files, key=os.path.getctime)
+
+def process_images_and_texts():
+    # 输入和输出目录
+    input_dir = "Genshin_Impact_Birthday_Art_Images"
+    output_dir = "Genshin_Impact_Birthday_Art_FramePack_Rotate_Dancing_Captioned"
+    save_dir = "save"
+
+    # 确保输出目录存在
+    os.makedirs(output_dir, exist_ok=True)
+    os.makedirs(save_dir, exist_ok=True)
+
+    # 获取所有.png文件
+    png_files_0 = glob.glob(os.path.join(input_dir, '*.png'))
+    png_files_1 = glob.glob(os.path.join(input_dir, '*.jpg'))
+    png_files_2 = glob.glob(os.path.join(input_dir, '*.jpeg'))
+    png_files_3 = glob.glob(os.path.join(input_dir, '*.webp'))
+    png_files = list(png_files_0) + list(png_files_1) + list(png_files_2) + list(png_files_3)
+
+
+    # 固定prompt
+    prompt = """In the style of Yi Chen Dancing White Background , The character's movements shift dynamically throughout the video, transitioning from poised stillness to lively dance steps. Her expressions evolve seamlessly—starting with focused determination, then flashing surprise as she executes a quick spin, before breaking into a joyful smile mid-leap. Her hands flow through choreographed positions, sometimes extending gracefully like unfolding wings, other times clapping rhythmically against her wrists. During a dramatic hip sway, her fingers fan open near her cheek, then sweep downward as her whole body dips into a playful crouch, the sequins on her costume catching the light with every motion."""
+
+    # 使用tqdm显示进度
+    for png_file in tqdm(png_files, desc="Processing images"):
+        # 获取对应的txt文件
+        base_name = os.path.splitext(os.path.basename(png_file))[0]
+        txt_file = os.path.join(input_dir, f"{base_name}.txt")
+
+        '''
+        if not os.path.exists(txt_file):
+            print(f"Warning: No corresponding .txt file found for {png_file}")
+            continue
+        '''
+        
+        # 构建命令
+        cmd = [
+            "python", "fpack_generate_video.py",
+            "--dit", "FramePackI2V_HY/diffusion_pytorch_model-00001-of-00003.safetensors",
+            "--vae", "HunyuanVideo/vae/diffusion_pytorch_model.safetensors",
+            "--text_encoder1", "HunyuanVideo_repackaged/split_files/text_encoders/llava_llama3_fp16.safetensors",
+            "--text_encoder2", "HunyuanVideo_repackaged/split_files/text_encoders/clip_l.safetensors",
+            "--image_encoder", "sigclip_vision_384/sigclip_vision_patch14_384.safetensors",
+            "--image_path", png_file,
+            "--prompt", prompt,
+            "--video_size", "960", "544",
+            "--video_seconds", "3",
+            "--fps", "30",
+            "--infer_steps", "25",
+            "--attn_mode", "sdpa",
+            "--fp8_scaled",
+            "--vae_chunk_size", "32",
+            "--vae_spatial_tile_sample_min_size", "128",
+            "--save_path", save_dir,
+            "--output_type", "both",
+            "--seed", "1234",
+            "--lora_multiplier", "1.0",
+            "--lora_weight", "rotate_landscape_V4.safetensors"
+        ]
+
+        # 运行命令
+        try:
+            subprocess.run(cmd, check=True)
+        except subprocess.CalledProcessError as e:
+            print(f"Error processing {png_file}: {e}")
+            continue
+
+        # 获取最新生成的mp4文件
+        latest_mp4 = get_latest_mp4(save_dir)
+        if latest_mp4 is None:
+            print(f"Warning: No .mp4 file generated for {png_file}")
+            continue
+
+        # 构建输出文件名
+        output_mp4 = os.path.join(output_dir, f"{base_name}.mp4")
+        output_txt = os.path.join(output_dir, f"{base_name}.txt")
+
+        # 拷贝文件
+        shutil.move(latest_mp4, output_mp4)
+        #shutil.copy2(txt_file, output_txt)
+
+        '''
+        # 清理save目录
+        for f in glob.glob(os.path.join(save_dir, '*')):
+            try:
+                os.remove(f)
+            except:
+                pass
+        '''
+
+if __name__ == "__main__":
+    process_images_and_texts()
+    print("All processing completed!")
+
+```
