@@ -689,6 +689,7 @@ from itertools import combinations
 import subprocess
 from moviepy.editor import concatenate_videoclips, AudioFileClip, ImageClip, CompositeAudioClip, VideoFileClip
 from moviepy.video.fx import all as vfx
+from moviepy.video.fx.all import crop
 from moviepy.audio.AudioClip import AudioClip
 from PIL import Image
 import numpy as np
@@ -806,6 +807,42 @@ def create_video_clip(group_data, output_path):
         audio_durations.append(audio_clip.duration)
         audio_clips.append(audio_clip)
 
+    def apply_effects(img_clip):
+        """对图片剪辑应用特效"""
+        # 轻微旋转和缩放
+        img_clip = img_clip.fx(vfx.rotate, angle=lambda t: 5 * np.sin(2 * np.pi * t / img_clip.duration), expand=False)
+        img_clip = img_clip.fx(vfx.resize, lambda t: 1 + 0.1 * np.sin(2 * np.pi * t / img_clip.duration))
+
+        # 淡入淡出效果
+        img_clip = img_clip.fx(vfx.fadein, 0.1).fx(vfx.fadeout, 0.1)
+
+        return img_clip
+
+    def apply_video_effects(video_clip):
+        """对视频剪辑应用特效，分三次应用"""
+        duration = video_clip.duration
+        third_duration = duration / 3
+
+        def apply_single_effect(clip):
+            # 轻微旋转和缩放
+            clip = clip.fx(vfx.rotate, angle=lambda t: 5 * np.sin(2 * np.pi * t / clip.duration), expand=False)
+            clip = clip.fx(vfx.resize, lambda t: 1 + 0.1 * np.sin(2 * np.pi * t / clip.duration))
+            return clip
+
+        # 分割视频剪辑为三个部分
+        part1 = video_clip.subclip(0, third_duration)
+        part2 = video_clip.subclip(third_duration, 2 * third_duration)
+        part3 = video_clip.subclip(2 * third_duration, duration)
+
+        # 对每个部分应用特效
+        part1 = apply_single_effect(part1)
+        part2 = apply_single_effect(part2)
+        part3 = apply_single_effect(part3)
+
+        # 合并三个部分
+        final_video_clip = concatenate_videoclips([part1, part2, part3])
+        return final_video_clip
+
     # 角色1: 3图片共享音频1+2时长，视频使用音频3
     char1 = group_data[0]
     char1_audio_duration = audio_durations[0] + audio_durations[1]
@@ -816,6 +853,7 @@ def create_video_clip(group_data, output_path):
         for i in range(3):
             img_clip = ImageClip(char1['image_files'][i], duration=per_image_duration)
             img_clip = img_clip.resize(config['output_resolution'])
+            img_clip = apply_effects(img_clip)
             clips.append(img_clip)
             current_time += per_image_duration
 
@@ -827,6 +865,7 @@ def create_video_clip(group_data, output_path):
         speed_factor = original_duration / target_duration
         video_clip = video_clip.fx(vfx.speedx, speed_factor)
         video_clip = video_clip.resize(config['output_resolution'])
+        video_clip = apply_video_effects(video_clip)
         clips.append(video_clip)
         current_time += target_duration
 
@@ -839,6 +878,7 @@ def create_video_clip(group_data, output_path):
         for i in range(3):
             img_clip = ImageClip(char2['image_files'][i], duration=per_image_duration)
             img_clip = img_clip.resize(config['output_resolution'])
+            img_clip = apply_effects(img_clip)
             clips.append(img_clip)
             current_time += per_image_duration
 
@@ -850,6 +890,7 @@ def create_video_clip(group_data, output_path):
         speed_factor = original_duration / target_duration
         video_clip = video_clip.fx(vfx.speedx, speed_factor)
         video_clip = video_clip.resize(config['output_resolution'])
+        video_clip = apply_video_effects(video_clip)
         clips.append(video_clip)
         current_time += target_duration
 
@@ -862,6 +903,7 @@ def create_video_clip(group_data, output_path):
         for i in range(3):
             img_clip = ImageClip(char3['image_files'][i], duration=per_image_duration)
             img_clip = img_clip.resize(config['output_resolution'])
+            img_clip = apply_effects(img_clip)
             clips.append(img_clip)
             current_time += per_image_duration
 
@@ -873,6 +915,7 @@ def create_video_clip(group_data, output_path):
         speed_factor = original_duration / target_duration
         video_clip = video_clip.fx(vfx.speedx, speed_factor)
         video_clip = video_clip.resize(config['output_resolution'])
+        video_clip = apply_video_effects(video_clip)
         clips.append(video_clip)
         current_time += target_duration
 
@@ -908,6 +951,8 @@ def create_video_clip(group_data, output_path):
     # 写入输出文件
     final_video.write_videofile(output_path, fps=24, codec='libx264', audio_codec='aac')
 
+
+
 def generate_videos(gender, num_groups, output_dir='output'):
     """生成指定数量的视频"""
     if not os.path.exists(output_dir):
@@ -930,7 +975,6 @@ def generate_videos(gender, num_groups, output_dir='output'):
         except Exception as e:
             print(f"生成视频失败: {e}")
             continue
-
 
 generate_videos('女', 2)
 
