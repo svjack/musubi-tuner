@@ -1588,3 +1588,79 @@ if __name__ == "__main__":
     add_subtitles_with_moviepy(input_dir, output_dir)
 
 ```
+
+```python
+import os
+import re
+from collections import defaultdict
+from moviepy.editor import VideoFileClip, concatenate_videoclips
+
+def filter_and_concatenate_videos(input_path, gender = "男"):
+    """
+    处理指定路径下的MP4文件，过滤出不重复角色的视频并合并成一个长视频
+    
+    参数:
+        input_path (str): 包含MP4文件的目录路径
+    
+    返回:
+        str: 合并后的视频文件路径
+    """
+    # 1. 获取所有MP4文件
+    mp4_files = [f for f in os.listdir(input_path) if f.endswith('.mp4')]
+    
+    # 2. 解析文件名，提取角色信息
+    character_videos = defaultdict(list)
+    pattern = re.compile(gender + r'_group_\d+_(.+?)_subtitled\.mp4')
+    
+    for filename in mp4_files:
+        match = pattern.match(filename)
+        if match:
+            characters = match.group(1).split('_')
+            for char in characters:
+                character_videos[char].append(filename)
+    
+    # 3. 选择不重复角色的视频
+    selected_files = []
+    used_characters = set()
+    all_characters_in_output = set()  # 记录最终输出中包含的所有角色
+    
+    for filename in mp4_files:
+        match = pattern.match(filename)
+        if match:
+            characters = match.group(1).split('_')
+            # 检查这个文件中的角色是否都未被使用过
+            if all(char not in used_characters for char in characters):
+                selected_files.append(filename)
+                used_characters.update(characters)
+                all_characters_in_output.update(characters)
+    
+    if not selected_files:
+        raise ValueError("没有找到符合条件的视频文件")
+    
+    # 4. 生成输出文件名
+    sorted_characters = sorted(all_characters_in_output)
+    output_filename = f"merged_{'_'.join(sorted_characters)}.mp4"
+    output_path = os.path.join(input_path, output_filename)
+    
+    # 5. 使用moviepy合并视频
+    clips = []
+    for file in selected_files:
+        file_path = os.path.join(input_path, file)
+        clip = VideoFileClip(file_path)
+        clip = clip.subclip(0, clip.duration - 1)
+        clips.append(clip)
+    
+    final_clip = concatenate_videoclips(clips)
+    final_clip.write_videofile(output_path, codec='libx264', audio_codec='aac')
+    
+    # 关闭所有clip以释放资源
+    for clip in clips:
+        clip.close()
+    final_clip.close()
+    
+    return output_path
+
+filter_and_concatenate_videos("Genshin_Impact_Boys_prefer_you_over_OTHERS_Subtitled/")
+
+filter_and_concatenate_videos("Genshin_Impact_Girls_prefer_you_over_OTHERS_Subtitled/", "女")
+```
