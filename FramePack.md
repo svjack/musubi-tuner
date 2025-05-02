@@ -981,7 +981,7 @@ generate_videos('女', 2)
 generate_videos('男', 2)
 ```
 
-#### 加入视频特效和字幕拼接 
+#### 加入视频特效和字幕拼接 （模块与字幕文件安装参照 https://github.com/svjack/Genshin-Impact-Fan-Video）
 ```python
 import os
 import random
