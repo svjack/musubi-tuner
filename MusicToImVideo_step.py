@@ -2687,3 +2687,229 @@ huggingface-cli download svjack/Genshin-Impact-Portrait-with-Tags-Filtered-IID-G
 huggingface-cli download svjack/Genshin-Impact-Portrait-with-Tags-Filtered-IID-Gender-SP --include="genshin_impact_XIAO_images_and_texts/*" --local-dir ./genshin_impact_XIAO_images_and_texts --repo-type dataset
 
 huggingface-cli download svjack/Genshin-Impact-Portrait-with-Tags-Filtered-IID-Gender-SP --include="genshin_impact_VENTI_images_and_texts/*" --local-dir ./genshin_impact_VENTI_images_and_texts --repo-type dataset
+
+git clone https://huggingface.co/ostris/Flex.2-preview
+
+Genshin_Impact_XIAO_Flex2_Lora
+
+Genshin_Impact_VENTI_Flex2_Lora
+
+Genshin_Impact_ZHONGLI_Flex2_Lora
+
+import torch
+from diffusers import AutoPipelineForText2Image
+from diffusers.utils import load_image
+from datasets import load_dataset
+import os
+import shutil
+from tqdm import tqdm
+from PIL import Image
+import io
+
+# Initialize the pipeline
+name_or_path = "Flex.2-preview"
+dtype = torch.bfloat16
+
+pipe = AutoPipelineForText2Image.from_pretrained(
+    name_or_path,
+    custom_pipeline=name_or_path,
+    torch_dtype=dtype
+)
+pipe.load_lora_weights("Genshin_Impact_ZHONGLI_Flex2_Lora/my_first_flex2_lora_v1_000002000.safetensors")
+pipe.enable_sequential_cpu_offload()
+
+# Load the dataset
+ds = load_dataset("svjack/Day_if_sentient_beings_SPLITED_BY_CAT_IM_SIGN_DEPTH_TEXT_47")["train"]
+
+# Create directories if they don't exist
+output_dir = "Day_if_sentient_beings_SPLITED_ZHONGLI_CARD"
+temp_dir = "temp_images"
+os.makedirs(output_dir, exist_ok=True)
+os.makedirs(temp_dir, exist_ok=True)
+
+# Get all mp3 files sorted alphabetically
+mp3_files = sorted([f for f in os.listdir("Day_if_sentient_beings_SPLITED") if f.endswith(".mp3")])
+
+# Process each item in the dataset
+for i in tqdm(range(len(ds)), desc="Generating images"):
+    # Save images to temporary directory first
+    base_name = os.path.splitext(mp3_files[i])[0]
+
+    # Save processed_image
+    processed_image_path = os.path.join(temp_dir, f"{base_name}_processed.png")
+    if isinstance(ds[i]["processed_image"], Image.Image):
+        ds[i]["processed_image"].save(processed_image_path)
+    else:
+        with open(processed_image_path, "wb") as f:
+            f.write(ds[i]["processed_image"]["bytes"])
+
+    # Save sign_mask
+    sign_mask_path = os.path.join(temp_dir, f"{base_name}_mask.png")
+    if isinstance(ds[i]["sign_mask"], Image.Image):
+        ds[i]["sign_mask"].save(sign_mask_path)
+    else:
+        with open(sign_mask_path, "wb") as f:
+            f.write(ds[i]["sign_mask"]["bytes"])
+
+    # Save depth image
+    depth_path = os.path.join(temp_dir, f"{base_name}_depth.png")
+    if isinstance(ds[i]["depth"], Image.Image):
+        ds[i]["depth"].save(depth_path)
+    else:
+        with open(depth_path, "wb") as f:
+            f.write(ds[i]["depth"]["bytes"])
+
+    # Now load the images using load_image
+    inpaint_image = load_image(processed_image_path)
+    inpaint_mask = load_image(sign_mask_path)
+    control_image = load_image(depth_path)
+
+    # Create the prompt
+    en_text = ds[i]["en_text"]
+    prompt = "ZHONGLI Boy hold a sign " + (en_text if ":" not in en_text else "")
+    print(f"Processing with prompt: {prompt}")
+
+    import numpy as np
+    seed = np.random.randint(0, int(1e5))
+
+    # Generate the image
+    image = pipe(
+        prompt=prompt,
+        inpaint_image=inpaint_image,
+        inpaint_mask=inpaint_mask,
+        control_image=control_image,
+        control_strength=0.5,
+        control_stop=0.33,
+        height=1024,
+        width=1024,
+        guidance_scale=3.5,
+        num_inference_steps=50,
+        generator=torch.Generator("cpu").manual_seed(seed)
+    ).images[0]
+
+    # Save the generated image and copy the mp3
+    image_path = os.path.join(output_dir, f"{base_name}.png")
+    mp3_path = os.path.join("Day_if_sentient_beings_SPLITED", mp3_files[i])
+
+    image.save(image_path)
+    shutil.copy2(mp3_path, os.path.join(output_dir, mp3_files[i]))
+
+    print(f"Saved {image_path} and copied {mp3_files[i]}")
+
+# Clean up temporary files (optional)
+# shutil.rmtree(temp_dir)
+
+print("All images generated and audio files copied successfully!")
+
+若干 项 简单纠错
+可以 采用 跳过方法
+并更小 control_strength 和 negative_prompt
+
+import torch
+from diffusers import AutoPipelineForText2Image
+from diffusers.utils import load_image
+from datasets import load_dataset
+import os
+import shutil
+from tqdm import tqdm
+from PIL import Image
+import io
+
+# Initialize the pipeline
+name_or_path = "Flex.2-preview"
+dtype = torch.bfloat16
+
+pipe = AutoPipelineForText2Image.from_pretrained(
+    name_or_path,
+    custom_pipeline=name_or_path,
+    torch_dtype=dtype
+)
+pipe.load_lora_weights("Genshin_Impact_XIAO_Flex2_Lora/my_first_flex2_lora_v1_000002000.safetensors")
+pipe.enable_sequential_cpu_offload()
+
+# Load the dataset
+ds = load_dataset("svjack/Day_if_sentient_beings_SPLITED_BY_CAT_IM_SIGN_DEPTH_TEXT_47")["train"]
+
+# Create directories if they don't exist
+output_dir = "Day_if_sentient_beings_SPLITED_XIAO_CARD"
+temp_dir = "temp_images"
+os.makedirs(output_dir, exist_ok=True)
+os.makedirs(temp_dir, exist_ok=True)
+
+# Get all mp3 files sorted alphabetically
+mp3_files = sorted([f for f in os.listdir("Day_if_sentient_beings_SPLITED") if f.endswith(".mp3")])
+
+# Process each item in the dataset
+for i in tqdm(range(len(ds)), desc="Generating images"):
+    if i not in [33, 35, 37]:
+        continue
+
+    # Save images to temporary directory first
+    base_name = os.path.splitext(mp3_files[i])[0]
+
+    # Save processed_image
+    processed_image_path = os.path.join(temp_dir, f"{base_name}_processed.png")
+    if isinstance(ds[i]["processed_image"], Image.Image):
+        ds[i]["processed_image"].save(processed_image_path)
+    else:
+        with open(processed_image_path, "wb") as f:
+            f.write(ds[i]["processed_image"]["bytes"])
+
+    # Save sign_mask
+    sign_mask_path = os.path.join(temp_dir, f"{base_name}_mask.png")
+    if isinstance(ds[i]["sign_mask"], Image.Image):
+        ds[i]["sign_mask"].save(sign_mask_path)
+    else:
+        with open(sign_mask_path, "wb") as f:
+            f.write(ds[i]["sign_mask"]["bytes"])
+
+    # Save depth image
+    depth_path = os.path.join(temp_dir, f"{base_name}_depth.png")
+    if isinstance(ds[i]["depth"], Image.Image):
+        ds[i]["depth"].save(depth_path)
+    else:
+        with open(depth_path, "wb") as f:
+            f.write(ds[i]["depth"]["bytes"])
+
+    # Now load the images using load_image
+    inpaint_image = load_image(processed_image_path)
+    inpaint_mask = load_image(sign_mask_path)
+    control_image = load_image(depth_path)
+
+    # Create the prompt
+    en_text = ds[i]["en_text"]
+    prompt = "XIAO Boy hold a sign " + (en_text if ":" not in en_text else "")
+    print(f"Processing with prompt: {prompt}")
+
+    import numpy as np
+    seed = np.random.randint(0, int(1e5))
+
+    # Generate the image
+    image = pipe(
+        prompt=prompt,
+        negative_prompt = "cat",
+        inpaint_image=inpaint_image,
+        inpaint_mask=inpaint_mask,
+        control_image=control_image,
+        control_strength=0.1,
+        control_stop=0.33,
+        height=1024,
+        width=1024,
+        guidance_scale=3.5,
+        num_inference_steps=50,
+        generator=torch.Generator("cpu").manual_seed(seed)
+    ).images[0]
+
+    # Save the generated image and copy the mp3
+    image_path = os.path.join(output_dir, f"{base_name}.png")
+    mp3_path = os.path.join("Day_if_sentient_beings_SPLITED", mp3_files[i])
+
+    image.save(image_path)
+    shutil.copy2(mp3_path, os.path.join(output_dir, mp3_files[i]))
+
+    print(f"Saved {image_path} and copied {mp3_files[i]}")
+
+# Clean up temporary files (optional)
+# shutil.rmtree(temp_dir)
+
+print("All images generated and audio files copied successfully!")
