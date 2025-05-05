@@ -1014,7 +1014,7 @@ for idx, (group_idx, gender, chinese_action) in enumerate(segments):
     name = new_dict[gender]
     english_action = action_translation.get(chinese_action, chinese_action)
     prompt = gen_one_person_prompt(name, english_action)
-    generate_and_save_image(pipeline, prompt, negative_prompt, seed=-1,
+    generate_and_save_image(pipeline, prompt, negative_prompt, seed=47,
                             save_dir="output_images_v0",
                             index=idx)
 
@@ -1800,7 +1800,7 @@ import os
 image_dir = "Genshin_Impact_XIAO_VENTI_Images_9_16"
 audio_text_dir = "Day_if_sentient_beings_SPLITED"
 output_file = "XIAO_VENTI_Day_if_sentient_beings.mp4"
-font_path = "simhei.ttf"  # 确保字体文件存在
+font_path = "华文琥珀.ttf"  # 确保字体文件存在
 font_size = 44
 subtitle_color = 'white'
 subtitle_bg_color = 'black'
@@ -1861,4 +1861,829 @@ for clip in video_clips:
     clip.close()
 final_video.close()
 
-问题：framepack 是否保持文字
+7、 framepack f1
+问题：framepack 是否保持文字 （保持文字 但几乎不动）
+
+sudo apt-get update && sudo apt-get install cbm git-lfs ffmpeg
+conda activate base
+pip install datasets huggingface_hub moviepy==1.0.3 "httpx[socks]" tabulate pydub gradio spaces
+git clone https://github.com/lllyasviel/FramePack && cd FramePack
+
+pip uninstall torch torchvision torchaudio -y
+pip install -U torch torchvision torchaudio
+
+pip install -r requirements.txt
+
+python demo_gradio_f1.py --share
+
+#### 可以增加特效
+A cat holding a sign , add water droplet effects
+
+特效库
+https://github.com/harmsm/pyfx
+
+8、inpainting 的举牌方式
+
+https://huggingface.co/ostris/Flex.2-preview
+
+pip uninstall torch torchvision diffusers transformers peft torch torchvision accelerate torchao -y
+pip install -U torch torchvision diffusers transformers peft torch torchvision accelerate torchao
+pip install sentencepiece
+
+git clone https://huggingface.co/ostris/Flex.2-preview
+
+import torch
+from diffusers import AutoPipelineForText2Image
+from diffusers.utils import load_image
+
+#name_or_path = "ostris/Flex.2-preview"
+name_or_path = "Flex.2-preview"
+dtype = torch.bfloat16
+
+pipe = AutoPipelineForText2Image.from_pretrained(
+    name_or_path,
+    custom_pipeline=name_or_path,
+    torch_dtype=dtype
+)
+pipe.load_lora_weights("Cat_Boy_AMu_o_ShenheStyle_Flex2_Lora/my_first_flex2_lora_v1_000002500.safetensors")
+pipe.enable_sequential_cpu_offload()
+
+inpaint_image = load_image("0022_天若有情 - 杜宣达.png")
+inpaint_mask = load_image("im1.png")
+control_image = load_image("im_depth.png")
+
+image = pipe(
+    prompt="tj_sthenhe, A cat boy hold a sign",
+    inpaint_image=inpaint_image,
+    inpaint_mask=inpaint_mask,
+    control_image=control_image,
+    control_strength=0.5,
+    control_stop=0.33,
+    height=1024,
+    width=1024,
+    guidance_scale=3.5,
+    num_inference_steps=50,
+    generator=torch.Generator("cpu").manual_seed(42)
+).images[0]
+image.save(f"cat_im.png")
+
+分割
+
+git clone https://huggingface.co/datasets/svjack/Day_if_sentient_beings_SPLITED_BY_CAT_EMPTY_CARD
+
+pip install librosa
+pip install "soundfile>=0.12.1"
+
+import os
+from datasets import load_dataset
+from PIL import Image  # 用于保存图片
+import soundfile as sf  # 用于保存音频
+
+# 加载数据集
+ds = load_dataset("svjack/Day_if_sentient_beings_SPLITED_BY_CAT_EMPTY_CARD")
+train_data = ds["train"]
+
+# 创建保存路径
+output_dir = "Day_if_sentient_beings_SPLITED_BY_CAT_EMPTY_CARD_dump"
+os.makedirs(output_dir, exist_ok=True)
+
+# 迭代保存数据
+for i in range(len(train_data)):
+    # 获取音频数据
+    audio_data = train_data[i]["audio"]
+    audio_path = audio_data["path"]  # 例如 '0001_天若有情 - 杜宣达.mp3'
+    audio_filename = os.path.basename(audio_path)  # 提取文件名（带扩展名）
+    audio_name = os.path.splitext(audio_filename)[0]  # 去掉扩展名
+
+    # 保存音频文件（保持原格式）
+    audio_output_path = os.path.join(output_dir, audio_filename)
+    sf.write(audio_output_path, audio_data["array"], audio_data["sampling_rate"])
+
+    # 保存图片文件（.png）
+    image_data = train_data[i]["image"]
+    image_output_path = os.path.join(output_dir, f"{audio_name}.png")
+    image_data.save(image_output_path)  # 假设 image_data 是 PIL.Image 对象
+
+print(f"数据已保存到 {output_dir}")
+
+
+git clone https://huggingface.co/spaces/merve/OWLSAM && cd OWLSAM
+pip install -r requirements.txt
+
+#### 生成 mask
+import os
+import shutil
+from gradio_client import Client, handle_file
+from PIL import Image
+import numpy as np
+
+# 输入和输出目录
+input_dir = "Day_if_sentient_beings_SPLITED_BY_CAT_EMPTY_CARD_dump"
+output_dir = "Day_if_sentient_beings_SPLITED_BY_CAT_EMPTY_CARD_MASK"
+os.makedirs(output_dir, exist_ok=True)  # 确保输出目录存在
+
+# 初始化 Gradio 客户端
+client = Client("http://localhost:7860")
+
+def process_image(input_path, output_path):
+    """处理图片：黑变白，非黑变黑"""
+    img = Image.open(input_path).convert("RGB")
+    img_array = np.array(img)
+
+    # 1. 黑色 (0,0,0) → 白色 (255,255,255)
+    black_pixels = (img_array[:, :, 0] == 0) & \
+                  (img_array[:, :, 1] == 0) & \
+                  (img_array[:, :, 2] == 0)
+    temp_array = img_array.copy()
+    temp_array[black_pixels] = [255, 255, 255]
+
+    # 2. 非黑色 → 黑色 (0,0,0)
+    white_pixels = (temp_array[:, :, 0] == 255) & \
+                  (temp_array[:, :, 1] == 255) & \
+                  (temp_array[:, :, 2] == 255)
+    result_array = np.zeros_like(temp_array)
+    result_array[white_pixels] = [255, 255, 255]
+
+    # 保存结果
+    result_img = Image.fromarray(result_array)
+    result_img.save(output_path)
+    return output_path
+
+# 遍历输入目录，仅处理文件（跳过子目录）
+for filename in os.listdir(input_dir):
+    input_path = os.path.join(input_dir, filename)
+
+    if not os.path.isfile(input_path):  # 确保是文件，不是目录
+        continue  # 跳过子目录
+
+    if filename.lower().endswith('.png'):
+        # 处理 PNG 文件
+        try:
+            print(f"Processing {filename}...")
+
+            # 调用 Gradio API
+            result = client.predict(
+                image=handle_file(input_path),
+                texts="sign",
+                threshold=0.05,
+                sam_threshold=0.88,
+                api_name="/predict"
+            )
+
+            # 获取 API 返回的图片路径
+            api_output_path = result["annotations"][0]["image"]
+
+            # 输出文件名（与原图同名）
+            output_filename = filename
+            output_path = os.path.join(output_dir, output_filename)
+
+            # 处理并保存图片
+            process_image(api_output_path, output_path)
+            print(f"Processed image saved to {output_path}")
+
+        except Exception as e:
+            print(f"Error processing {filename}: {str(e)}")
+    else:
+        # 复制非 PNG 文件到输出目录
+        output_path = os.path.join(output_dir, filename)
+        if not os.path.exists(output_path):  # 避免覆盖
+            shutil.copy2(input_path, output_path)
+            print(f"Copied {filename} to output directory")
+
+print("All files processed successfully!")
+
+#!/bin/bash
+
+# 定义输入和输出路径
+DUMP_DIR="Day_if_sentient_beings_SPLITED_BY_CAT_EMPTY_CARD_dump"
+MASK_DIR="Day_if_sentient_beings_SPLITED_BY_CAT_EMPTY_CARD_MASK"
+OUTPUT_DIR="Day_if_sentient_beings_SPLITED_BY_CAT_EMPTY_CARD_MASK_PAIR"
+
+# 创建输出目录
+mkdir -p "$OUTPUT_DIR"
+
+# 遍历dump目录中的所有.png文件
+for dump_file in "$DUMP_DIR"/*.png; do
+    # 获取文件名（不含路径）
+    filename=$(basename "$dump_file")
+
+    # 检查mask目录中是否存在同名文件
+    mask_file="$MASK_DIR/$filename"
+    if [ -f "$mask_file" ]; then
+        # 复制dump文件到输出目录，命名为1_filename
+        cp "$dump_file" "$OUTPUT_DIR/1_$filename"
+
+        # 复制mask文件到输出目录，命名为2_filename
+        cp "$mask_file" "$OUTPUT_DIR/2_$filename"
+    fi
+done
+
+echo "文件配对复制完成，输出到目录: $OUTPUT_DIR"
+
+huggingface-cli upload svjack/Day_if_sentient_beings_SPLITED_BY_CAT_EMPTY_CARD_MASK_PAIR Day_if_sentient_beings_SPLITED_BY_CAT_EMPTY_CARD_MASK_PAIR --repo-type dataset
+
+git clone https://huggingface.co/spaces/svjack/Depth-Anything-V2 && cd Depth-Anything-V2
+pip install -r requirements.txt
+python app.py
+
+vim run_depth.py
+
+import os
+from gradio_client import Client, handle_file
+from shutil import copy2
+from tqdm import tqdm
+
+client = Client("http://localhost:7861/")
+
+# Define paths
+source_folder = "Day_if_sentient_beings_SPLITED_BY_CAT_EMPTY_CARD_MASK_PAIR"
+output_folder = "Day_if_sentient_beings_SPLITED_BY_CAT_EMPTY_DEPTH_IMAGE"
+
+# Create output folder if it doesn't exist
+os.makedirs(output_folder, exist_ok=True)
+
+# Iterate through all files in source folder
+for filename in tqdm(os.listdir(source_folder)):
+    # Skip non-image files (optional)
+
+    if not filename.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.gif', ".webp")):
+        continue
+
+    print(filename)
+
+    if not filename.lower().startswith('1_'):
+        continue
+
+    # Process the image
+    file_path = os.path.join(source_folder, filename)
+
+    print(file_path)
+
+    try:
+        result = client.predict(
+            image=handle_file(file_path),
+            api_name="/on_submit"
+        )
+
+        # Copy the depth image to output folder with same filename
+        depth_image_path = result[1]
+        output_path = os.path.join(output_folder, filename)
+        copy2(depth_image_path, output_path)
+
+        print(f"Processed {filename} successfully")
+
+    except Exception as e:
+        print(f"Error processing {filename}: {str(e)}")
+
+print("All images processed!")
+
+huggingface-cli upload svjack/Day_if_sentient_beings_SPLITED_BY_CAT_EMPTY_DEPTH_IMAGE Day_if_sentient_beings_SPLITED_BY_CAT_EMPTY_DEPTH_IMAGE --repo-type dataset
+
+对于 https://huggingface.co/datasets/svjack/Day_if_sentient_beings_SPLITED_BY_CAT_EMPTY_CARD_MASK_PAIR
+要去掉最后一个
+
+对于 https://huggingface.co/datasets/svjack/Day_if_sentient_beings_SPLITED_BY_CAT_EMPTY_DEPTH_IMAGE
+也要这样
+
+构造三元组数据集
+
+from datasets import Dataset, Image
+import os
+from PIL import Image as PILImage
+
+# 定义路径
+mask_pair_path = "Day_if_sentient_beings_SPLITED_BY_CAT_EMPTY_CARD_MASK_PAIR"
+depth_image_path = "Day_if_sentient_beings_SPLITED_BY_CAT_EMPTY_DEPTH_IMAGE"
+
+# 获取两个目录下的所有图片文件，按字典序排序
+mask_pair_files = sorted([f for f in os.listdir(mask_pair_path) if f.endswith(('.png', '.jpg', '.jpeg'))])
+depth_image_files = sorted([f for f in os.listdir(depth_image_path) if f.endswith(('.png', '.jpg', '.jpeg'))])
+
+# 验证数量关系
+assert len(mask_pair_files) == 2 * len(depth_image_files), "数量关系不符合要求"
+
+# 构造数据集
+data = []
+for i in range(len(depth_image_files[:-1])):
+    if i == (9):
+        continue
+
+    if i == (len(depth_image_files) - 5 - 1):
+        continue
+
+    # 获取对应的image和sign_mask文件名
+    image_file = mask_pair_files[i]
+    sign_mask_file = mask_pair_files[i + len(depth_image_files)]
+    depth_file = depth_image_files[i]
+
+    # 构建完整路径
+    image_path = os.path.join(mask_pair_path, image_file)
+    sign_mask_path = os.path.join(mask_pair_path, sign_mask_file)
+    depth_path = os.path.join(depth_image_path, depth_file)
+
+    # 添加到数据集
+    data.append({
+        "image": PILImage.open(image_path),
+        "sign_mask": PILImage.open(sign_mask_path),
+        "depth": PILImage.open(depth_path)
+    })
+
+# 创建Hugging Face Dataset
+dataset = Dataset.from_dict({
+    "image": [item["image"] for item in data],
+    "sign_mask": [item["sign_mask"] for item in data],
+    "depth": [item["depth"] for item in data]
+})
+
+# 转换为Image类型
+dataset = dataset.cast_column("image", Image())
+dataset = dataset.cast_column("sign_mask", Image())
+dataset = dataset.cast_column("depth", Image())
+
+# 现在你可以使用这个dataset了
+print(dataset)
+
+dataset.push_to_hub("svjack/Day_if_sentient_beings_SPLITED_BY_CAT_IM_SIGN_DEPTH")
+
+对对应的数据集加 文字
+
+import numpy as np
+from PIL import Image, ImageDraw, ImageFont
+import cv2
+
+def find_max_black_rectangle(mask_image):
+    """
+    找到mask图像中黑色区域的最大内接矩形
+    返回: (x, y, w, h) 矩形坐标和宽高
+    """
+    # 转换为numpy数组
+    mask_array = np.array(mask_image)
+
+    # 转换为单通道灰度图像
+    if len(mask_array.shape) == 3:
+        mask_array = cv2.cvtColor(mask_array, cv2.COLOR_RGB2GRAY)
+
+    # 二值化处理(黑色区域为255，白色为0)
+    _, binary = cv2.threshold(mask_array, 127, 255, cv2.THRESH_BINARY_INV)
+
+    # 查找轮廓(注意OpenCV版本差异)
+    contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    max_area = 0
+    best_rect = (0, 0, 0, 0)  # x, y, w, h
+
+    for contour in contours:
+        # 获取边界矩形
+        x, y, w, h = cv2.boundingRect(contour)
+        area = w * h
+
+        if area > max_area:
+            max_area = area
+            best_rect = (x, y, w, h)
+
+    return best_rect
+
+def add_text_to_image(base_image, rect, text, font_path="华文琥珀.ttf", color=(255, 255, 0)):
+    """
+    在图像的指定矩形区域添加居中文字
+    """
+    x, y, w, h = rect
+    draw = ImageDraw.Draw(base_image)
+
+    # 尝试加载字体，自动调整大小
+    try:
+        # 根据矩形高度计算字体大小，保留20%边距
+        font_size = int(min(w * 0.8 / max(1, len(text)), h * 0.8))
+        font = ImageFont.truetype(font_path, font_size)
+    except:
+        print(f"字体 {font_path} 加载失败，使用默认字体")
+        font = ImageFont.load_default()
+        font_size = int(min(w * 0.8 / max(1, len(text)), h * 0.8))
+        try:
+            font = font.font_variant(size=font_size)
+        except:
+            pass
+
+    # 计算文字位置(居中)
+    try:
+        # 新版Pillow
+        bbox = draw.textbbox((0, 0), text, font=font)
+        text_w = bbox[2] - bbox[0]
+        text_h = bbox[3] - bbox[1]
+    except:
+        # 旧版Pillow
+        text_w, text_h = draw.textsize(text, font=font)
+
+    pos_x = x + (w - text_w) // 2
+    pos_y = y + (h - text_h) // 2
+
+    # 添加文字
+    draw.text((pos_x, pos_y), text, fill=color, font=font)
+    return base_image
+
+# 主程序
+if __name__ == "__main__":
+    from datasets import load_dataset
+
+    # 加载数据集
+    ds = load_dataset("svjack/Day_if_sentient_beings_SPLITED_BY_CAT_IM_SIGN_DEPTH")["train"]
+
+    # 获取图像和掩码
+    im = ds[0]["image"].copy()
+    mask_im = ds[0]["sign_mask"].copy()
+
+    # 找到最大黑色矩形区域
+    rect = find_max_black_rectangle(mask_im)
+    print(f"找到的最大矩形区域: x={rect[0]}, y={rect[1]}, width={rect[2]}, height={rect[3]}")
+
+    # 添加文字
+    result = add_text_to_image(
+        base_image=im,
+        rect=rect,
+        text="天若有情天亦老",
+        font_path="华文琥珀.ttf",
+        color=(255, 255, 0)  # 黄色
+    )
+
+    # 显示结果
+    result.show()
+    # 保存结果
+    # result.save("output.jpg")
+
+数据集循环
+
+from datasets import load_dataset, concatenate_datasets
+
+# 加载原始数据集
+dataset = load_dataset("svjack/Day_if_sentient_beings_SPLITED_BY_CAT_IM_SIGN_DEPTH")["train"]
+target_rows = 47
+current_rows = len(dataset)
+
+if current_rows > target_rows:
+    # 如果不足47行，直接截取（若行数不足47则保留全部）
+    adjusted_dataset = dataset.select(range(min(current_rows, target_rows)))
+else:
+    # 如果超过47行，先截取前47行，再循环补充剩余部分
+    repeat_times = (target_rows // current_rows) + 1
+    repeated_datasets = [dataset] * repeat_times
+    concatenated = concatenate_datasets(repeated_datasets)
+    adjusted_dataset = concatenated.select(range(target_rows))
+
+# 验证结果
+print(f"调整后行数: {len(adjusted_dataset)}")  # 输出应为47
+
+adjusted_dataset.push_to_hub("svjack/Day_if_sentient_beings_SPLITED_BY_CAT_IM_SIGN_DEPTH_47")
+
+import numpy as np
+from PIL import Image, ImageDraw, ImageFont
+import cv2
+import os
+from datasets import load_dataset, Dataset
+
+def find_max_black_rectangle(mask_image):
+    """
+    找到mask图像中黑色区域的最大内接矩形
+    返回: (x, y, w, h) 矩形坐标和宽高
+    """
+    # 转换为numpy数组
+    mask_array = np.array(mask_image)
+
+    # 转换为单通道灰度图像
+    if len(mask_array.shape) == 3:
+        mask_array = cv2.cvtColor(mask_array, cv2.COLOR_RGB2GRAY)
+
+    # 二值化处理(黑色区域为255，白色为0)
+    _, binary = cv2.threshold(mask_array, 127, 255, cv2.THRESH_BINARY_INV)
+
+    # 查找轮廓(注意OpenCV版本差异)
+    contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    max_area = 0
+    best_rect = (0, 0, 0, 0)  # x, y, w, h
+
+    for contour in contours:
+        # 获取边界矩形
+        x, y, w, h = cv2.boundingRect(contour)
+        area = w * h
+
+        if area > max_area:
+            max_area = area
+            best_rect = (x, y, w, h)
+
+    return best_rect
+
+def add_text_to_image(base_image, rect, text, font_path="华文琥珀.ttf", color=(255, 255, 0)):
+    """
+    在图像的指定矩形区域添加居中文字
+    """
+    x, y, w, h = rect
+    draw = ImageDraw.Draw(base_image)
+
+    # 尝试加载字体，自动调整大小
+    try:
+        # 根据矩形高度计算字体大小，保留20%边距
+        font_size = int(min(w * 0.8 / max(1, len(text)), h * 0.8))
+        font = ImageFont.truetype(font_path, font_size)
+    except:
+        print(f"字体 {font_path} 加载失败，使用默认字体")
+        font = ImageFont.load_default()
+        font_size = int(min(w * 0.8 / max(1, len(text)), h * 0.8))
+        try:
+            font = font.font_variant(size=font_size)
+        except:
+            pass
+
+    # 计算文字位置(居中)
+    try:
+        # 新版Pillow
+        bbox = draw.textbbox((0, 0), text, font=font)
+        text_w = bbox[2] - bbox[0]
+        text_h = bbox[3] - bbox[1]
+    except:
+        # 旧版Pillow
+        text_w, text_h = draw.textsize(text, font=font)
+
+    pos_x = x + (w - text_w) // 2
+    pos_y = y + (h - text_h) // 2
+
+    # 添加文字
+    draw.text((pos_x, pos_y), text, fill=color, font=font)
+    return base_image
+
+def process_dataset(dataset_name, text_dir, output_dir=None):
+    """
+    处理整个数据集，为每张图片添加文字并返回新数据集
+
+    参数:
+        dataset_name: 数据集名称，如"svjack/Day_if_sentient_beings_SPLITED_BY_CAT_IM_SIGN_DEPTH_47"
+        text_dir: 包含文本文件的目录路径
+        output_dir: 可选，保存处理后的图片的目录
+
+    返回:
+        包含处理后的图像的新数据集
+    """
+    # 加载数据集
+    ds = load_dataset(dataset_name)["train"]
+
+    # 读取文本文件并按字典序排序
+    text_files = sorted([f for f in os.listdir(text_dir) if f.endswith('.txt')])
+    texts = []
+    for txt_file in text_files:
+        with open(os.path.join(text_dir, txt_file), 'r', encoding='utf-8') as f:
+            texts.append(f.read().strip())
+
+    # 确保文本数量与数据集大小匹配
+    if len(texts) < len(ds):
+        print(f"警告: 文本文件数量({len(texts)})少于数据集大小({len(ds)}), 将重复使用文本")
+        texts = texts * (len(ds) // len(texts) + 1)
+    texts = texts[:len(ds)]
+
+    # 处理每张图片
+    processed_images = []
+    for i, example in enumerate(ds):
+        im = example["image"].copy()
+        mask_im = example["sign_mask"].copy()
+
+        # 找到最大黑色矩形区域
+        rect = find_max_black_rectangle(mask_im)
+
+        # 添加文字
+        result = add_text_to_image(
+            base_image=im,
+            rect=rect,
+            text=texts[i],
+            font_path="华文琥珀.ttf",
+            color=(255, 255, 0)  # 黄色
+        )
+
+        # 保存到输出目录（如果指定）
+        if output_dir:
+            os.makedirs(output_dir, exist_ok=True)
+            result.save(os.path.join(output_dir, f"processed_{i}.jpg"))
+
+        processed_images.append(result)
+
+    # 创建新数据集
+    new_ds = Dataset.from_dict({
+        "original_image": [ex["image"] for ex in ds],
+        "sign_mask": [ex["sign_mask"] for ex in ds],
+        "depth": [ex["depth"] for ex in ds],
+        "processed_image": processed_images,
+        "text": texts[:len(ds)]
+    })
+
+    return new_ds
+
+if __name__ == "__main__":
+    # 设置路径
+    dataset_name = "svjack/Day_if_sentient_beings_SPLITED_BY_CAT_IM_SIGN_DEPTH_47"
+    text_dir = "Day_if_sentient_beings_SPLITED"  # 包含.txt文件的目录
+    output_dir = "processed_images"  # 保存处理后的图片
+
+    # 处理数据集
+    processed_dataset = process_dataset(dataset_name, text_dir, output_dir)
+
+    # 显示第一个结果
+    processed_dataset[0]["processed_image"].show()
+
+    # 可以保存处理后的数据集
+    # processed_dataset.save_to_disk("processed_dataset")
+
+processed_dataset.push_to_hub("svjack/Day_if_sentient_beings_SPLITED_BY_CAT_IM_SIGN_DEPTH_TEXT_47")
+
+from datasets import load_dataset
+
+# Load the dataset
+ds = load_dataset("svjack/Day_if_sentient_beings_SPLITED_BY_CAT_IM_SIGN_DEPTH_TEXT_47")["train"]
+
+en_l = ['Lyrics by : Ji Rujing',
+ 'Composer : Huang Yida',
+ 'Production: NetEase Hurricane X NetEase Qingyun',
+ 'When the wind rises, flowers fall in abundance',
+ 'Who holds the brush to paint your portrait',
+ 'A solitary shadow under the moon, tears dampen the blue robe',
+ 'Flowing water does not repay a lifetime of deep affection',
+ 'Looking back alone, too fleeting',
+ 'How many loves and hatreds in this life',
+ 'Only wishing to stay with you forever',
+ 'Boundless fine rain thin as sorrow',
+ 'Morning chill and rain, how many glances back',
+ 'Where do you linger in this vast world',
+ 'If heaven has feelings, it is also heartless',
+ 'Love ends in separation',
+ 'Your reincarnation mark falls between my brows',
+ 'Until one day I can no longer breathe',
+ 'A solitary shadow under the moon, tears dampen the blue robe',
+ 'Flowing water does not repay a lifetime of deep affection',
+ 'Looking back alone, too fleeting',
+ 'How many loves and hatreds in this life',
+ 'Only wishing to stay with you forever',
+ 'Boundless fine rain thin as sorrow',
+ 'Morning chill and rain, how many glances back',
+ 'Where do you linger in this vast world',
+ 'If heaven has feelings, it is also heartless',
+ 'Love ends in separation',
+ 'Your reincarnation mark falls between my brows',
+ 'Until one day I can no longer breathe',
+ 'If heaven has feelings, it is also heartless',
+ 'In this vast mortal world I wait for you',
+ 'Using your longing to dye my white hair',
+ 'Though seemingly worlds apart, you never truly left',
+ 'Producer: Wang Yuankun',
+ 'Arranger: Ren Bin',
+ 'Guitar: Wu Jiayu',
+ 'Backing Vocals: Pan Sibe',
+ 'Mixing Engineer: Zheng Haojie',
+ 'Mastering Engineer: Zheng Haojie',
+ 'Planning: Wang Jiasheng',
+ 'Coordination: Chen Shangti/Huang Luhuan/ELANUS',
+ 'Supervisor: Wang Jiasheng',
+ 'Marketing Promotion: NetEase Hurricane',
+ 'Presented by: Xie Qidi X Tang Jingjing',
+ 'OP/SP: Sony Music Publishing (Beijing) Co., Ltd.',
+ '[This version is an officially authorized cover]',
+ 'Original singer : A-Lin']
+
+# Add the en_text column
+ds = ds.add_column("en_text", en_l)
+
+ds.push_to_hub("svjack/Day_if_sentient_beings_SPLITED_BY_CAT_IM_SIGN_DEPTH_TEXT_47")
+
+
+import torch
+from diffusers import AutoPipelineForText2Image
+from diffusers.utils import load_image
+from datasets import load_dataset
+import os
+import shutil
+from tqdm import tqdm
+from PIL import Image
+import io
+
+# Initialize the pipeline
+name_or_path = "Flex.2-preview"
+dtype = torch.bfloat16
+
+pipe = AutoPipelineForText2Image.from_pretrained(
+    name_or_path,
+    custom_pipeline=name_or_path,
+    torch_dtype=dtype
+)
+pipe.load_lora_weights("Cat_Boy_AMu_o_ShenheStyle_Flex2_Lora/my_first_flex2_lora_v1_000002500.safetensors")
+pipe.enable_sequential_cpu_offload()
+
+# Load the dataset
+ds = load_dataset("svjack/Day_if_sentient_beings_SPLITED_BY_CAT_IM_SIGN_DEPTH_TEXT_47")["train"]
+
+# Create directories if they don't exist
+output_dir = "Day_if_sentient_beings_SPLITED_ShenHe_Boy_CARD"
+temp_dir = "temp_images"
+os.makedirs(output_dir, exist_ok=True)
+os.makedirs(temp_dir, exist_ok=True)
+
+# Get all mp3 files sorted alphabetically
+mp3_files = sorted([f for f in os.listdir("Day_if_sentient_beings_SPLITED") if f.endswith(".mp3")])
+
+# Process each item in the dataset
+for i in tqdm(range(len(ds)), desc="Generating images"):
+    # Save images to temporary directory first
+    base_name = os.path.splitext(mp3_files[i])[0]
+
+    # Save processed_image
+    processed_image_path = os.path.join(temp_dir, f"{base_name}_processed.png")
+    if isinstance(ds[i]["processed_image"], Image.Image):
+        ds[i]["processed_image"].save(processed_image_path)
+    else:
+        with open(processed_image_path, "wb") as f:
+            f.write(ds[i]["processed_image"]["bytes"])
+
+    # Save sign_mask
+    sign_mask_path = os.path.join(temp_dir, f"{base_name}_mask.png")
+    if isinstance(ds[i]["sign_mask"], Image.Image):
+        ds[i]["sign_mask"].save(sign_mask_path)
+    else:
+        with open(sign_mask_path, "wb") as f:
+            f.write(ds[i]["sign_mask"]["bytes"])
+
+    # Save depth image
+    depth_path = os.path.join(temp_dir, f"{base_name}_depth.png")
+    if isinstance(ds[i]["depth"], Image.Image):
+        ds[i]["depth"].save(depth_path)
+    else:
+        with open(depth_path, "wb") as f:
+            f.write(ds[i]["depth"]["bytes"])
+
+    # Now load the images using load_image
+    inpaint_image = load_image(processed_image_path)
+    inpaint_mask = load_image(sign_mask_path)
+    control_image = load_image(depth_path)
+
+    # Create the prompt
+    en_text = ds[i]["en_text"]
+    prompt = "tj_sthenhe, A boy hold a sign " + (en_text if ":" not in en_text else "")
+    print(f"Processing with prompt: {prompt}")
+
+    import numpy as np
+    seed = np.random.randint(0, int(1e5))
+
+    # Generate the image
+    image = pipe(
+        prompt=prompt,
+        inpaint_image=inpaint_image,
+        inpaint_mask=inpaint_mask,
+        control_image=control_image,
+        control_strength=0.5,
+        control_stop=0.33,
+        height=1024,
+        width=1024,
+        guidance_scale=3.5,
+        num_inference_steps=50,
+        generator=torch.Generator("cpu").manual_seed(seed)
+    ).images[0]
+
+    # Save the generated image and copy the mp3
+    image_path = os.path.join(output_dir, f"{base_name}.png")
+    mp3_path = os.path.join("Day_if_sentient_beings_SPLITED", mp3_files[i])
+
+    image.save(image_path)
+    shutil.copy2(mp3_path, os.path.join(output_dir, mp3_files[i]))
+
+    print(f"Saved {image_path} and copied {mp3_files[i]}")
+
+# Clean up temporary files (optional)
+# shutil.rmtree(temp_dir)
+
+print("All images generated and audio files copied successfully!")
+
+Cat_Boy_AMu_o_ShenheStyle_Flex2_Lora 的文件要改变名称进行上传
+
+得到 魈 和 温蒂
+
+sudo apt-get update && sudo apt-get install git-lfs cbm ffmpeg
+
+git clone https://github.com/ostris/ai-toolkit.git
+cd ai-toolkit
+git submodule update --init --recursive
+# install torch first
+pip install --no-cache-dir torch==2.6.0 torchvision==0.21.0
+pip install -r requirements.txt
+pip install datasets
+pip install hf_xet
+
+edit os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "0" in run.py
+
+cp config/examples/train_lora_flex2_24gb.yaml config
+
+python run.py config/train_lora_flex2_24gb.yaml
+
+huggingface-cli 下载数据集 svjack/Genshin-Impact-Portrait-with-Tags-Filtered-IID-Gender-SP
+的子文件夹 genshin_impact_ZHONGLI_images_and_texts
+到本地
+
+export HF_ENDPOINT="https://hf-mirror.com"
+
+huggingface-cli download svjack/Genshin-Impact-Portrait-with-Tags-Filtered-IID-Gender-SP --include="genshin_impact_ZHONGLI_images_and_texts/*" --local-dir ./genshin_impact_ZHONGLI_images_and_texts --repo-type dataset
+
+huggingface-cli download svjack/Genshin-Impact-Portrait-with-Tags-Filtered-IID-Gender-SP --include="genshin_impact_XIAO_images_and_texts/*" --local-dir ./genshin_impact_XIAO_images_and_texts --repo-type dataset
+
+huggingface-cli download svjack/Genshin-Impact-Portrait-with-Tags-Filtered-IID-Gender-SP --include="genshin_impact_VENTI_images_and_texts/*" --local-dir ./genshin_impact_VENTI_images_and_texts --repo-type dataset
