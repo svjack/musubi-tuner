@@ -2982,6 +2982,8 @@ huggingface-cli download --repo-type model --resume-download ostris/Flex.2-previ
 
 huggingface-cli download --repo-type dataset --resume-download svjack/Day_if_sentient_beings_SPLITED --local-dir Day_if_sentient_beings_SPLITED --local-dir-use-symlinks False
 
+huggingface-cli download --repo-type model --resume-download svjack/Genshin_Impact_XIAO_Flex2_Lora --local-dir Genshin_Impact_XIAO_Flex2_Lora --local-dir-use-symlinks False
+
 
 import torch
 from diffusers import AutoPipelineForText2Image
@@ -3080,6 +3082,105 @@ while True:
         print(f"Saved {image_path}")
 
     iteration += 1
+
+import torch
+from diffusers import AutoPipelineForText2Image
+from diffusers.utils import load_image
+from datasets import load_dataset
+import os
+import shutil
+from tqdm import tqdm
+from PIL import Image
+import io
+import numpy as np
+
+# Initialize the pipeline
+name_or_path = "Flex.2-preview"
+dtype = torch.bfloat16
+
+pipe = AutoPipelineForText2Image.from_pretrained(
+    name_or_path,
+    custom_pipeline=name_or_path,
+    torch_dtype=dtype
+)
+pipe.load_lora_weights("Genshin_Impact_XIAO_Flex2_Lora/my_first_flex2_lora_v1_000002000.safetensors")
+pipe.enable_sequential_cpu_offload()
+
+# Load the dataset
+ds = load_dataset("svjack/Robot_Holding_A_Sign_Images_MASK_DEPTH")["train"]
+
+# Create directories if they don't exist
+output_dir = "XIAO_CARD_Images"
+temp_dir = "temp_images"
+os.makedirs(output_dir, exist_ok=True)
+os.makedirs(temp_dir, exist_ok=True)
+
+# Continuous processing loop
+iteration = 0
+while True:
+    for i in tqdm(range(len(ds)), desc=f"Generating images (Iteration {iteration + 1})"):
+        # Generate unique base name using iteration and item index
+        base_name = f"iter{iteration}_item{i}"
+
+        # Save processed_image
+        processed_image_path = os.path.join(temp_dir, f"{base_name}_processed.png")
+        if isinstance(ds[i]["original_image"], Image.Image):
+            ds[i]["original_image"].save(processed_image_path)
+        else:
+            with open(processed_image_path, "wb") as f:
+                f.write(ds[i]["processed_image"]["bytes"])
+
+        # Save sign_mask
+        sign_mask_path = os.path.join(temp_dir, f"{base_name}_mask.png")
+        if isinstance(ds[i]["sign_mask"], Image.Image):
+            ds[i]["sign_mask"].save(sign_mask_path)
+        else:
+            with open(sign_mask_path, "wb") as f:
+                f.write(ds[i]["sign_mask"]["bytes"])
+
+        # Save depth image
+        depth_path = os.path.join(temp_dir, f"{base_name}_depth.png")
+        if isinstance(ds[i]["depth"], Image.Image):
+            ds[i]["depth"].save(depth_path)
+        else:
+            with open(depth_path, "wb") as f:
+                f.write(ds[i]["depth"]["bytes"])
+
+        # Now load the images using load_image
+        inpaint_image = load_image(processed_image_path)
+        inpaint_mask = load_image(sign_mask_path)
+        control_image = load_image(depth_path)
+
+        # Fixed prompt
+        prompt = "XIAO holding a sign"
+        print(f"Processing with prompt: {prompt}")
+
+        seed = np.random.randint(0, int(1e5))
+
+        # Generate the image
+        image = pipe(
+            prompt=prompt,
+            negative_prompt="low quality, blurry, distorted",
+            inpaint_image=inpaint_image,
+            inpaint_mask=inpaint_mask,
+            control_image=control_image,
+            control_strength=0.1,
+            control_stop=0.33,
+            height=1024,
+            width=1024,
+            guidance_scale=3.5,
+            num_inference_steps=50,
+            generator=torch.Generator("cpu").manual_seed(seed)
+        ).images[0]
+
+        # Save the generated image
+        image_path = os.path.join(output_dir, f"{base_name}.png")
+        image.save(image_path)
+
+        print(f"Saved {image_path}")
+
+    iteration += 1
+
 
 + background remove
 
