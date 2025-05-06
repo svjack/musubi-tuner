@@ -2913,3 +2913,174 @@ for i in tqdm(range(len(ds)), desc="Generating images"):
 # shutil.rmtree(temp_dir)
 
 print("All images generated and audio files copied successfully!")
+
+huggingface-cli download --repo-type dataset --resume-download svjack/Robot_Holding_A_Sign_Images --local-dir Robot_Holding_A_Sign_Images --local-dir-use-symlinks False
+
+huggingface-cli download --repo-type space --resume-download merve/OWLSAM --local-dir OWLSAM --local-dir-use-symlinks False
+
+huggingface-cli download --repo-type space --resume-download svjack/Depth-Anything-V2 --local-dir Depth-Anything-V2 --local-dir-use-symlinks False
+
+svjack/Robot_Holding_A_Sign_Images_MASK_DEPTH
+
+
+
+import os
+import numpy as np
+from PIL import Image
+from datasets import Dataset, Image as HFImage
+
+# 定义文件夹路径
+image_dir = "Robot_Holding_A_Sign_Images"
+mask_dir = "Robot_Holding_A_Sign_Images_MASK"
+depth_dir = "Robot_Holding_A_Sign_Images_DEPTH"
+
+# 获取所有文件名（不带路径和后缀）
+def get_basename_set(dir_path):
+    return {os.path.splitext(f)[0] for f in os.listdir(dir_path) if f.endswith('.png')}
+
+# 计算mask中黑色像素比例
+def calculate_black_ratio(mask_path):
+    mask = np.array(Image.open(mask_path).convert('L'))  # 转为灰度
+    total_pixels = mask.size
+    black_pixels = np.sum(mask == 0)  # 统计值为0的像素
+    return float(black_pixels) / total_pixels
+
+# 取三个文件夹共有的文件名（交集）
+common_names = sorted(get_basename_set(image_dir) &
+                     get_basename_set(mask_dir) &
+                     get_basename_set(depth_dir))
+
+# 构建数据字典（仅保留 black_ratio > 0.1 的样本）
+data = {
+    "original_image": [],
+    "sign_mask": [],
+    "depth": [],
+    "black_ratio": []
+}
+
+for name in common_names:
+    mask_path = os.path.join(mask_dir, f"{name}.png")
+    ratio = calculate_black_ratio(mask_path)
+    if ratio > 0.1:  # 只保留比例大于0.1的样本
+        data["original_image"].append(os.path.join(image_dir, f"{name}.png"))
+        data["sign_mask"].append(os.path.join(mask_dir, f"{name}.png"))
+        data["depth"].append(os.path.join(depth_dir, f"{name}.png"))
+        data["black_ratio"].append(ratio)
+
+# 创建 Dataset 并强制转换为 Image 类型
+dataset = Dataset.from_dict(data).cast_column("original_image", HFImage())
+dataset = dataset.cast_column("sign_mask", HFImage())
+dataset = dataset.cast_column("depth", HFImage())
+
+dataset.push_to_hub("svjack/Robot_Holding_A_Sign_Images_MASK_DEPTH")
+
+svjack/Genshin_Impact_ZHONGLI_Flex2_Lora
+
+huggingface-cli download --repo-type model --resume-download svjack/Genshin_Impact_ZHONGLI_Flex2_Lora --local-dir Genshin_Impact_ZHONGLI_Flex2_Lora --local-dir-use-symlinks False
+
+huggingface-cli download --repo-type model --resume-download ostris/Flex.2-preview --local-dir Flex.2-preview --local-dir-use-symlinks False
+
+huggingface-cli download --repo-type dataset --resume-download svjack/Day_if_sentient_beings_SPLITED --local-dir Day_if_sentient_beings_SPLITED --local-dir-use-symlinks False
+
+
+import torch
+from diffusers import AutoPipelineForText2Image
+from diffusers.utils import load_image
+from datasets import load_dataset
+import os
+import shutil
+from tqdm import tqdm
+from PIL import Image
+import io
+import numpy as np
+
+# Initialize the pipeline
+name_or_path = "Flex.2-preview"
+dtype = torch.bfloat16
+
+pipe = AutoPipelineForText2Image.from_pretrained(
+    name_or_path,
+    custom_pipeline=name_or_path,
+    torch_dtype=dtype
+)
+pipe.load_lora_weights("Genshin_Impact_ZHONGLI_Flex2_Lora/my_first_flex2_lora_v1_000002000.safetensors")
+pipe.enable_sequential_cpu_offload()
+
+# Load the dataset
+ds = load_dataset("svjack/Robot_Holding_A_Sign_Images_MASK_DEPTH")["train"]
+
+# Create directories if they don't exist
+output_dir = "ZHONGLI_CARD_Images"
+temp_dir = "temp_images"
+os.makedirs(output_dir, exist_ok=True)
+os.makedirs(temp_dir, exist_ok=True)
+
+# Continuous processing loop
+iteration = 0
+while True:
+    for i in tqdm(range(len(ds)), desc=f"Generating images (Iteration {iteration + 1})"):
+        # Generate unique base name using iteration and item index
+        base_name = f"iter{iteration}_item{i}"
+
+        # Save processed_image
+        processed_image_path = os.path.join(temp_dir, f"{base_name}_processed.png")
+        if isinstance(ds[i]["original_image"], Image.Image):
+            ds[i]["original_image"].save(processed_image_path)
+        else:
+            with open(processed_image_path, "wb") as f:
+                f.write(ds[i]["processed_image"]["bytes"])
+
+        # Save sign_mask
+        sign_mask_path = os.path.join(temp_dir, f"{base_name}_mask.png")
+        if isinstance(ds[i]["sign_mask"], Image.Image):
+            ds[i]["sign_mask"].save(sign_mask_path)
+        else:
+            with open(sign_mask_path, "wb") as f:
+                f.write(ds[i]["sign_mask"]["bytes"])
+
+        # Save depth image
+        depth_path = os.path.join(temp_dir, f"{base_name}_depth.png")
+        if isinstance(ds[i]["depth"], Image.Image):
+            ds[i]["depth"].save(depth_path)
+        else:
+            with open(depth_path, "wb") as f:
+                f.write(ds[i]["depth"]["bytes"])
+
+        # Now load the images using load_image
+        inpaint_image = load_image(processed_image_path)
+        inpaint_mask = load_image(sign_mask_path)
+        control_image = load_image(depth_path)
+
+        # Fixed prompt
+        prompt = "ZHONGLI holding a sign"
+        print(f"Processing with prompt: {prompt}")
+
+        seed = np.random.randint(0, int(1e5))
+
+        # Generate the image
+        image = pipe(
+            prompt=prompt,
+            negative_prompt="low quality, blurry, distorted",
+            inpaint_image=inpaint_image,
+            inpaint_mask=inpaint_mask,
+            control_image=control_image,
+            control_strength=0.1,
+            control_stop=0.33,
+            height=1024,
+            width=1024,
+            guidance_scale=3.5,
+            num_inference_steps=50,
+            generator=torch.Generator("cpu").manual_seed(seed)
+        ).images[0]
+
+        # Save the generated image
+        image_path = os.path.join(output_dir, f"{base_name}.png")
+        image.save(image_path)
+
+        print(f"Saved {image_path}")
+
+    iteration += 1
+
++ background remove
+
+https://huggingface.co/spaces/briaai/BRIA-RMBG-1.4
