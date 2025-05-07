@@ -3272,7 +3272,7 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 
 # Load the model
 birefnet = AutoModelForImageSegmentation.from_pretrained(
-    "briaai/RMBG-2.0", 
+    "briaai/RMBG-2.0",
     trust_remote_code=True
 )
 birefnet.to(device)
@@ -3289,7 +3289,7 @@ def remove_background(image_path):
     # Load the image
     image = Image.open(image_path).convert("RGB")
     original_size = image.size
-    
+
     # Prepare input for model
     input_image = transform_image(image).unsqueeze(0).to(device)
 
@@ -3314,7 +3314,7 @@ def remove_background(image_path):
 if __name__ == "__main__":
     input_image_path = "conclusion_im.png"
     transparent_img, mask_img = remove_background(input_image_path)
-    
+
     # Save results
     transparent_img.save("transparent_output.png")
     mask_img.save("mask_output.png")
@@ -3336,30 +3336,30 @@ os.makedirs("temp_images", exist_ok=True)
 def process_image(row):
     # 使用更明确的命名方式包含id
     image_id = str(uuid1())
-    
+
     # 保存原始图像到临时文件
     original_path = f"temp_images/{image_id}_original.png"
     row['original_image'].save(original_path)
-    
+
     # 这里调用您的图像处理函数
     # 假设您的函数名为remove_background，返回透明图像和mask
     transparent_img, mask_img = remove_background(original_path)
-    
+
     # 保存处理后的图像（包含id）
     transparent_path = f"temp_images/{image_id}_transparent.png"
     mask_path = f"temp_images/{image_id}_mask.png"
     transparent_img.save(transparent_path)
     mask_img.save(mask_path)
-    
+
     # 重新加载为PIL.Image对象
     transparent_img = Image.open(transparent_path).convert("RGBA")
     mask_img = Image.open(mask_path).convert("L")
-    
+
     # 清理临时文件
     #os.remove(original_path)
     #os.remove(transparent_path)
     #os.remove(mask_path)
-    
+
     return {
         "transparent_image": transparent_img,
         "mask_image": mask_img
@@ -3390,31 +3390,31 @@ def calculate_overlap_ratio(sign_mask_img, mask_img):
     # 将 PIL 图像转换为 NumPy 数组
     sign_mask = np.array(sign_mask_img)
     mask = np.array(mask_img)
-    
+
     # 统一为单通道
     if len(sign_mask.shape) == 3:  # 如果是 RGB 图像
         sign_mask = sign_mask[:, :, 0]  # 取第一个通道（假设所有通道相同）
-    
+
     # 确保图像是二值的（0 和 255）
     if sign_mask.max() == 1:
         sign_mask = sign_mask * 255
     if mask.max() == 1:
         mask = mask * 255
-    
+
     # 计算 sign_mask 的黑色部分（像素值 <= 127）
     sign_mask_black = (sign_mask <= 127)
     total_black_pixels = np.sum(sign_mask_black)
-    
+
     if total_black_pixels == 0:
         return 0.0  # 避免除以零
-    
+
     # 计算 mask 的白色部分（像素值 >= 128）
     mask_white = (mask >= 128)
-    
+
     # 计算重叠部分（sign_mask 黑色且 mask 白色）
     overlap = np.logical_and(sign_mask_black, mask_white)
     overlap_pixels = np.sum(overlap)
-    
+
     # 计算比例
     ratio = overlap_pixels / total_black_pixels
     return float(ratio)
@@ -3425,16 +3425,16 @@ def process_dataset(data):
     for example in data:
         sign_mask = example["sign_mask"]
         mask_image = example["mask_image"]
-        
+
         # 如果图像是文件路径，则加载图像
         if isinstance(sign_mask, str):
             sign_mask = Image.open(sign_mask)
         if isinstance(mask_image, str):
             mask_image = Image.open(mask_image)
-        
+
         ratio = calculate_overlap_ratio(sign_mask, mask_image)
         ratios.append(ratio)
-    
+
     return ratios
 
 # 计算所有样本的重叠比例
@@ -3457,3 +3457,327 @@ for i in range(min(5, len(filtered_data))):
 
 filtered_data.push_to_hub("svjack/ZHONGLI_Holding_A_Sign_Images_MASK_DEPTH_RMBG_1024x1024_169")
 
+
+import numpy as np
+from PIL import Image, ImageDraw, ImageFont
+import cv2
+import os
+from datasets import load_dataset, Dataset
+
+def find_max_black_rectangle(mask_image):
+    """
+    找到mask图像中黑色区域的最大内接矩形
+    返回: (x, y, w, h) 矩形坐标和宽高
+    """
+    # 转换为numpy数组
+    mask_array = np.array(mask_image)
+
+    # 转换为单通道灰度图像
+    if len(mask_array.shape) == 3:
+        mask_array = cv2.cvtColor(mask_array, cv2.COLOR_RGB2GRAY)
+
+    # 二值化处理(黑色区域为255，白色为0)
+    _, binary = cv2.threshold(mask_array, 127, 255, cv2.THRESH_BINARY_INV)
+
+    # 查找轮廓(注意OpenCV版本差异)
+    contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    max_area = 0
+    best_rect = (0, 0, 0, 0)  # x, y, w, h
+
+    for contour in contours:
+        # 获取边界矩形
+        x, y, w, h = cv2.boundingRect(contour)
+        area = w * h
+
+        if area > max_area:
+            max_area = area
+            best_rect = (x, y, w, h)
+
+    return best_rect
+
+def add_text_to_image(base_image, rect, text, font_path="华文琥珀.ttf", color=(255, 255, 0)):
+    """
+    在图像的指定矩形区域添加居中文字
+    """
+    x, y, w, h = rect
+    draw = ImageDraw.Draw(base_image)
+
+    # 尝试加载字体，自动调整大小
+    try:
+        # 根据矩形高度计算字体大小，保留20%边距
+        font_size = int(min(w * 0.8 / max(1, len(text)), h * 0.8))
+        font = ImageFont.truetype(font_path, font_size)
+    except:
+        print(f"字体 {font_path} 加载失败，使用默认字体")
+        font = ImageFont.load_default()
+        font_size = int(min(w * 0.8 / max(1, len(text)), h * 0.8))
+        try:
+            font = font.font_variant(size=font_size)
+        except:
+            pass
+
+    # 计算文字位置(居中)
+    try:
+        # 新版Pillow
+        bbox = draw.textbbox((0, 0), text, font=font)
+        text_w = bbox[2] - bbox[0]
+        text_h = bbox[3] - bbox[1]
+    except:
+        # 旧版Pillow
+        text_w, text_h = draw.textsize(text, font=font)
+
+    pos_x = x + (w - text_w) // 2
+    pos_y = y + (h - text_h) // 2
+
+    # 添加文字
+    draw.text((pos_x, pos_y), text, fill=color, font=font)
+    return base_image
+
+def process_dataset(dataset_name, text_dir, output_dir=None):
+    """
+    处理整个数据集，为每张图片添加文字并返回新数据集
+
+    参数:
+        dataset_name: 数据集名称，如"svjack/Day_if_sentient_beings_SPLITED_BY_CAT_IM_SIGN_DEPTH_47"
+        text_dir: 包含文本文件的目录路径
+        output_dir: 可选，保存处理后的图片的目录
+
+    返回:
+        包含处理后的图像的新数据集
+    """
+    # 加载数据集
+    ds = load_dataset(dataset_name)["train"]
+
+    # 读取文本文件并按字典序排序
+    text_files = sorted([f for f in os.listdir(text_dir) if f.endswith('.txt')])
+    texts = []
+    for txt_file in text_files:
+        with open(os.path.join(text_dir, txt_file), 'r', encoding='utf-8') as f:
+            texts.append(f.read().strip())
+
+    '''
+    # 确保文本数量与数据集大小匹配
+    if len(texts) < len(ds):
+        print(f"警告: 文本文件数量({len(texts)})少于数据集大小({len(ds)}), 将重复使用文本")
+        texts = texts * (len(ds) // len(texts) + 1)
+    texts = texts[:len(ds)]
+    '''
+
+    # 处理每张图片
+    processed_images = []
+    for i, example in enumerate(ds):
+        if i >= len(texts):
+            break
+        im = example["transparent_image"].copy()
+        mask_im = example["sign_mask"].copy()
+
+        # 找到最大黑色矩形区域
+        rect = find_max_black_rectangle(mask_im)
+
+        # 添加文字
+        result = add_text_to_image(
+            base_image=im,
+            rect=rect,
+            text=texts[i],
+            font_path="华文琥珀.ttf",
+            color=(255, 255, 0)  # 黄色
+        )
+
+        # 保存到输出目录（如果指定）
+        if output_dir:
+            os.makedirs(output_dir, exist_ok=True)
+            result.save(os.path.join(output_dir, f"processed_{i}.png"))
+
+        processed_images.append(result)
+
+    # 创建新数据集
+    new_ds = Dataset.from_dict({
+        "original_image": [ex["transparent_image"] for ex in ds][:len(processed_images)],
+        "sign_mask": [ex["sign_mask"] for ex in ds][:len(processed_images)],
+        "depth": [ex["robot_depth"] for ex in ds][:len(processed_images)],
+        "mask_image": [ex["mask_image"] for ex in ds][:len(processed_images)],
+        "processed_image": processed_images,
+        "text": texts[:len(processed_images)]
+    })
+
+    return new_ds
+
+
+if __name__ == "__main__":
+    # 设置路径
+    #dataset_name = "svjack/ZHONGLI_Holding_A_Sign_Images_MASK_DEPTH_RMBG_1024x1024_169"
+    dataset_name = "svjack/XIAO_Holding_A_Sign_Images_MASK_DEPTH_RMBG_1024x1024_204"
+    text_dir = "Day_if_sentient_beings_SPLITED"  # 包含.txt文件的目录
+    output_dir = "processed_images"  # 保存处理后的图片
+
+    # 处理数据集
+    processed_dataset = process_dataset(dataset_name, text_dir, output_dir)
+
+    # 显示第一个结果
+    processed_dataset[0]["processed_image"].show()
+
+    # 可以保存处理后的数据集
+    # processed_dataset.save_to_disk("processed_dataset")
+
+# processed_dataset.push_to_hub("svjack/Day_if_sentient_beings_SPLITED_BY_ZHONGLI_IM_SIGN_DEPTH_TEXT_47")
+processed_dataset.push_to_hub("svjack/Day_if_sentient_beings_SPLITED_BY_XIAO_IM_SIGN_DEPTH_TEXT_47")
+
+
+import torch
+from diffusers import AutoPipelineForText2Image
+from diffusers.utils import load_image
+from datasets import load_dataset
+import os
+import shutil
+from tqdm import tqdm
+from PIL import Image, ImageOps
+import io
+
+# Initialize the pipeline
+name_or_path = "Flex.2-preview"
+dtype = torch.bfloat16
+
+pipe = AutoPipelineForText2Image.from_pretrained(
+    name_or_path,
+    custom_pipeline=name_or_path,
+    torch_dtype=dtype
+)
+pipe.load_lora_weights("Genshin_Impact_ZHONGLI_Flex2_Lora/my_first_flex2_lora_v1_000002000.safetensors")
+pipe.enable_sequential_cpu_offload()
+
+# Load the dataset
+ds = load_dataset("svjack/Day_if_sentient_beings_SPLITED_BY_ZHONGLI_IM_SIGN_DEPTH_TEXT_47")["train"]
+
+# Get all mp3 files sorted alphabetically
+mp3_files = sorted([f for f in os.listdir("Day_if_sentient_beings_SPLITED") if f.endswith(".mp3")])
+
+en_l = ['Lyrics by : Ji Rujing',
+ 'Composer : Huang Yida',
+ 'Production: NetEase Hurricane X NetEase Qingyun',
+ 'When the wind rises, flowers fall in abundance',
+ 'Who holds the brush to paint your portrait',
+ 'A solitary shadow under the moon, tears dampen the blue robe',
+ 'Flowing water does not repay a lifetime of deep affection',
+ 'Looking back alone, too fleeting',
+ 'How many loves and hatreds in this life',
+ 'Only wishing to stay with you forever',
+ 'Boundless fine rain thin as sorrow',
+ 'Morning chill and rain, how many glances back',
+ 'Where do you linger in this vast world',
+ 'If heaven has feelings, it is also heartless',
+ 'Love ends in separation',
+ 'Your reincarnation mark falls between my brows',
+ 'Until one day I can no longer breathe',
+ 'A solitary shadow under the moon, tears dampen the blue robe',
+ 'Flowing water does not repay a lifetime of deep affection',
+ 'Looking back alone, too fleeting',
+ 'How many loves and hatreds in this life',
+ 'Only wishing to stay with you forever',
+ 'Boundless fine rain thin as sorrow',
+ 'Morning chill and rain, how many glances back',
+ 'Where do you linger in this vast world',
+ 'If heaven has feelings, it is also heartless',
+ 'Love ends in separation',
+ 'Your reincarnation mark falls between my brows',
+ 'Until one day I can no longer breathe',
+ 'If heaven has feelings, it is also heartless',
+ 'In this vast mortal world I wait for you',
+ 'Using your longing to dye my white hair',
+ 'Though seemingly worlds apart, you never truly left',
+ 'Producer: Wang Yuankun',
+ 'Arranger: Ren Bin',
+ 'Guitar: Wu Jiayu',
+ 'Backing Vocals: Pan Sibe',
+ 'Mixing Engineer: Zheng Haojie',
+ 'Mastering Engineer: Zheng Haojie',
+ 'Planning: Wang Jiasheng',
+ 'Coordination: Chen Shangti/Huang Luhuan/ELANUS',
+ 'Supervisor: Wang Jiasheng',
+ 'Marketing Promotion: NetEase Hurricane',
+ 'Presented by: Xie Qidi X Tang Jingjing',
+ 'OP/SP: Sony Music Publishing (Beijing) Co., Ltd.',
+ '[This version is an officially authorized cover]',
+ 'Original singer : A-Lin']
+
+for j in range(100):
+
+    # Create directories if they don't exist
+    output_dir = "Day_if_sentient_beings_SPLITED_ZHONGLI_adult_CARD_{}".format(j)
+    temp_dir = "temp_images_zhongli_{}".format(j)
+    os.makedirs(output_dir, exist_ok=True)
+    os.makedirs(temp_dir, exist_ok=True)
+
+    # Process each item in the dataset
+    for i in tqdm(range(len(ds)), desc="Generating images"):
+        # Save images to temporary directory first
+        base_name = os.path.splitext(mp3_files[i])[0]
+
+        # Save processed_image
+        processed_image_path = os.path.join(temp_dir, f"{base_name}_processed.png")
+        if isinstance(ds[i]["processed_image"].convert("RGB"), Image.Image):
+            ds[i]["processed_image"].convert("RGB").save(processed_image_path)
+        else:
+            with open(processed_image_path, "wb") as f:
+                f.write(ds[i]["processed_image"]["bytes"])
+
+        # Save sign_mask
+        sign_mask_path = os.path.join(temp_dir, f"{base_name}_mask.png")
+        if isinstance(ds[i]["mask_image"], Image.Image):
+            (ImageOps.invert(ds[i]["mask_image"].convert('L'))).convert("RGB").save(sign_mask_path)
+            #ds[i]["mask_image"].save(sign_mask_path)
+        else:
+            with open(sign_mask_path, "wb") as f:
+                f.write(ds[i]["sign_mask"]["bytes"])
+
+        # Save depth image
+        depth_path = os.path.join(temp_dir, f"{base_name}_depth.png")
+        if isinstance(ds[i]["depth"], Image.Image):
+            ds[i]["depth"].save(depth_path)
+        else:
+            with open(depth_path, "wb") as f:
+                f.write(ds[i]["depth"]["bytes"])
+
+        # Now load the images using load_image
+        inpaint_image = load_image(processed_image_path)
+        inpaint_mask = load_image(sign_mask_path)
+        #control_image = load_image(depth_path)
+        import numpy as np
+        control_image = Image.fromarray(np.zeros((1024, 1024, 3)).astype(np.uint8))
+
+        # Create the prompt
+        en_text = en_l[i]
+        prompt = "" + (en_text if ":" not in en_text else "Outdoor LandScape")
+        print(f"Processing with prompt: {prompt}")
+
+        import numpy as np
+        seed = np.random.randint(0, int(1e5))
+
+        # Generate the image
+        image = pipe(
+            prompt=prompt,
+            inpaint_image=inpaint_image,
+            inpaint_mask=inpaint_mask,
+            control_image=Image.fromarray(np.zeros((1024, 1024, 3)).astype(np.uint8)),
+            control_strength=0.1,
+            control_stop=0.33,
+            height=1024,
+            width=1024,
+            guidance_scale=3.5,
+            num_inference_steps=50,
+            generator=torch.Generator("cpu").manual_seed(seed)
+        ).images[0]
+
+        # Save the generated image and copy the mp3
+        image_path = os.path.join(output_dir, f"{base_name}.png")
+        mp3_path = os.path.join("Day_if_sentient_beings_SPLITED", mp3_files[i])
+
+        image.save(image_path)
+        shutil.copy2(mp3_path, os.path.join(output_dir, mp3_files[i]))
+
+        print(f"Saved {image_path} and copied {mp3_files[i]}")
+
+    # Clean up temporary files (optional)
+    # shutil.rmtree(temp_dir)
+
+print("All images generated and audio files copied successfully!")
