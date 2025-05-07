@@ -3374,4 +3374,86 @@ processed_dataset = processed_dataset.cast_column("mask_image", HFImage())
 
 processed_dataset.push_to_hub("svjack/ZHONGLI_Holding_A_Sign_Images_MASK_DEPTH_RMBG_1024x1024")
 
+import numpy as np
+from PIL import Image
+from datasets import load_dataset
+
+# 加载数据集
+dataset = load_dataset("svjack/ZHONGLI_Holding_A_Sign_Images_MASK_DEPTH_RMBG_1024x1024")
+
+# 假设数据集是 "train" 分割（如果不是，请调整）
+split = "train" if "train" in dataset else list(dataset.keys())[0]
+data = dataset[split]
+
+# 定义一个函数来计算重叠比例
+def calculate_overlap_ratio(sign_mask_img, mask_img):
+    # 将 PIL 图像转换为 NumPy 数组
+    sign_mask = np.array(sign_mask_img)
+    mask = np.array(mask_img)
+    
+    # 统一为单通道
+    if len(sign_mask.shape) == 3:  # 如果是 RGB 图像
+        sign_mask = sign_mask[:, :, 0]  # 取第一个通道（假设所有通道相同）
+    
+    # 确保图像是二值的（0 和 255）
+    if sign_mask.max() == 1:
+        sign_mask = sign_mask * 255
+    if mask.max() == 1:
+        mask = mask * 255
+    
+    # 计算 sign_mask 的黑色部分（像素值 <= 127）
+    sign_mask_black = (sign_mask <= 127)
+    total_black_pixels = np.sum(sign_mask_black)
+    
+    if total_black_pixels == 0:
+        return 0.0  # 避免除以零
+    
+    # 计算 mask 的白色部分（像素值 >= 128）
+    mask_white = (mask >= 128)
+    
+    # 计算重叠部分（sign_mask 黑色且 mask 白色）
+    overlap = np.logical_and(sign_mask_black, mask_white)
+    overlap_pixels = np.sum(overlap)
+    
+    # 计算比例
+    ratio = overlap_pixels / total_black_pixels
+    return float(ratio)
+
+# 遍历数据集并计算比例
+def process_dataset(data):
+    ratios = []
+    for example in data:
+        sign_mask = example["sign_mask"]
+        mask_image = example["mask_image"]
+        
+        # 如果图像是文件路径，则加载图像
+        if isinstance(sign_mask, str):
+            sign_mask = Image.open(sign_mask)
+        if isinstance(mask_image, str):
+            mask_image = Image.open(mask_image)
+        
+        ratio = calculate_overlap_ratio(sign_mask, mask_image)
+        ratios.append(ratio)
+    
+    return ratios
+
+# 计算所有样本的重叠比例
+overlap_ratios = process_dataset(data)
+
+# 将比例添加到数据集
+updated_data = data.add_column("overlap_ratio", overlap_ratios)
+
+# 过滤数据集，只保留 overlap_ratio > 0.95 的样本
+filtered_data = updated_data.filter(lambda example: example["overlap_ratio"] > 0.95)
+
+# 打印过滤后的数据集信息
+print(f"原始数据集样本数: {len(data)}")
+print(f"过滤后数据集样本数: {len(filtered_data)}")
+print(f"保留比例: {len(filtered_data)/len(data):.2%}")
+
+# 打印前几个样本的结果
+for i in range(min(5, len(filtered_data))):
+    print(f"Sample {i}: Overlap ratio = {filtered_data[i]['overlap_ratio']:.4f}")
+
+filtered_data.push_to_hub("svjack/ZHONGLI_Holding_A_Sign_Images_MASK_DEPTH_RMBG_1024x1024_169")
 
