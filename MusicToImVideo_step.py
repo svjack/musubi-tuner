@@ -3261,3 +3261,117 @@ dataset.push_to_hub("svjack/ZHONGLI_Holding_A_Sign_Images_MASK_DEPTH_1024x1024")
 + background remove
 
 https://huggingface.co/spaces/briaai/BRIA-RMBG-1.4
+
+import torch
+from torchvision import transforms
+from PIL import Image
+from transformers import AutoModelForImageSegmentation
+
+# Check CUDA availability
+device = "cuda" if torch.cuda.is_available() else "cpu"
+
+# Load the model
+birefnet = AutoModelForImageSegmentation.from_pretrained(
+    "briaai/RMBG-2.0", 
+    trust_remote_code=True
+)
+birefnet.to(device)
+
+# Define image transformations
+transform_image = transforms.Compose([
+    transforms.Resize((1024, 1024)),
+    transforms.ToTensor(),
+    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+])
+
+def remove_background(image_path):
+    """Remove background from a single image and return both the transparent image and mask."""
+    # Load the image
+    image = Image.open(image_path).convert("RGB")
+    original_size = image.size
+    
+    # Prepare input for model
+    input_image = transform_image(image).unsqueeze(0).to(device)
+
+    # Get prediction
+    with torch.no_grad():
+        preds = birefnet(input_image)[-1].sigmoid().cpu()
+    pred = preds[0].squeeze()
+
+    # Convert prediction to mask
+    mask = (pred * 255).byte()  # Convert to 0-255 range
+    mask_pil = transforms.ToPILImage()(mask).convert("L")
+    mask_resized = mask_pil.resize(original_size, Image.LANCZOS)
+
+    # Create transparent image by applying the mask as alpha channel
+    transparent_image = image.copy()
+    transparent_image.putalpha(mask_resized)
+
+    return transparent_image, mask_resized
+
+'''
+# Example usage
+if __name__ == "__main__":
+    input_image_path = "conclusion_im.png"
+    transparent_img, mask_img = remove_background(input_image_path)
+    
+    # Save results
+    transparent_img.save("transparent_output.png")
+    mask_img.save("mask_output.png")
+'''
+
+from datasets import load_dataset
+from PIL import Image
+import os
+import numpy as np
+from datasets import Image as HFImage  # 导入HFImage用于类型转换
+from uuid import uuid1
+
+# 加载数据集
+dataset = load_dataset("svjack/ZHONGLI_Holding_A_Sign_Images_MASK_DEPTH_1024x1024")
+
+# 创建临时目录保存图像
+os.makedirs("temp_images", exist_ok=True)
+
+def process_image(row):
+    # 使用更明确的命名方式包含id
+    image_id = str(uuid1())
+    
+    # 保存原始图像到临时文件
+    original_path = f"temp_images/{image_id}_original.png"
+    row['original_image'].save(original_path)
+    
+    # 这里调用您的图像处理函数
+    # 假设您的函数名为remove_background，返回透明图像和mask
+    transparent_img, mask_img = remove_background(original_path)
+    
+    # 保存处理后的图像（包含id）
+    transparent_path = f"temp_images/{image_id}_transparent.png"
+    mask_path = f"temp_images/{image_id}_mask.png"
+    transparent_img.save(transparent_path)
+    mask_img.save(mask_path)
+    
+    # 重新加载为PIL.Image对象
+    transparent_img = Image.open(transparent_path).convert("RGBA")
+    mask_img = Image.open(mask_path).convert("L")
+    
+    # 清理临时文件
+    #os.remove(original_path)
+    #os.remove(transparent_path)
+    #os.remove(mask_path)
+    
+    return {
+        "transparent_image": transparent_img,
+        "mask_image": mask_img
+    }
+
+# 应用处理函数到每一行
+processed_dataset = dataset.map(process_image, batched=False)
+
+# 将新增的列转换为image类型
+processed_dataset = processed_dataset.cast_column("transparent_image", HFImage())
+processed_dataset = processed_dataset.cast_column("mask_image", HFImage())
+
+processed_dataset.push_to_hub("svjack/ZHONGLI_Holding_A_Sign_Images_MASK_DEPTH_RMBG_1024x1024")
+
+
