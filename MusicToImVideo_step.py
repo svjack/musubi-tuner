@@ -3181,6 +3181,50 @@ while True:
 
     iteration += 1
 
+import os
+import re
+from PIL import Image
+from datasets import load_dataset
+from datasets import Image as HFImage
+
+# 加载原始数据集
+ds = load_dataset("svjack/Robot_Holding_A_Sign_Images_MASK_DEPTH")["train"]
+
+# 准备构建新数据集的数据列表
+data_list = []
+
+# 定义正则表达式模式
+pattern = r'iter(\d+)_item(\d+)\.png'
+
+# 遍历目录中的文件
+folder_path = "ZHONGLI_CARD_Images_renamed"
+for filename in sorted(os.listdir(folder_path)):  # 排序保证顺序一致
+    if filename.endswith(".png"):
+        match = re.match(pattern, filename)
+        if match:
+            iter_num = int(match.group(1))
+            item_idx = int(match.group(2))
+
+            # 获取对应数据
+            data = {
+                "original_image": Image.open(os.path.join(folder_path ,filename)),
+                "sign_mask": ds[item_idx]["sign_mask"],
+                "robot_depth": ds[item_idx]["depth"]  # 添加depth列
+            }
+            data_list.append(data)
+
+
+# 创建HuggingFace Dataset
+new_dataset = Dataset.from_list(data_list)
+
+# 类型转换（确保图像列使用正确的类型）
+new_dataset = new_dataset.cast_column("original_image", HFImage())
+
+# 查看数据集信息
+print(new_dataset)
+print(new_dataset[0])  # 查看第一条数据
+
+new_dataset.push_to_hub("svjack/ZHONGLI_Holding_A_Sign_Images_MASK_DEPTH")
 
 + background remove
 
