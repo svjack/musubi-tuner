@@ -3184,7 +3184,7 @@ while True:
 import os
 import re
 from PIL import Image
-from datasets import load_dataset
+from datasets import load_dataset, Dataset
 from datasets import Image as HFImage
 
 # 加载原始数据集
