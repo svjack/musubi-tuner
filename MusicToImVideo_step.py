@@ -3226,6 +3226,38 @@ print(new_dataset[0])  # 查看第一条数据
 
 new_dataset.push_to_hub("svjack/ZHONGLI_Holding_A_Sign_Images_MASK_DEPTH")
 
+from datasets import load_dataset
+from PIL import Image
+import numpy as np
+from huggingface_hub import login
+import os
+
+# 2. 加载数据集
+dataset = load_dataset("svjack/ZHONGLI_Holding_A_Sign_Images_MASK_DEPTH")
+
+# 3. 定义调整图片大小的函数
+def resize_image(image, size=(1024, 1024)):
+    if isinstance(image, np.ndarray):
+        image = Image.fromarray(image)
+    return image.resize(size, Image.LANCZOS)  # 使用 LANCZOS 抗锯齿
+
+# 4. 处理数据集（调整图片大小）
+def process_example(example):
+    example["sign_mask"] = resize_image(example["sign_mask"])
+    example["robot_depth"] = resize_image(example["robot_depth"])
+    return example
+
+# 应用处理函数
+dataset = dataset.map(process_example, batched=False)
+
+# 5. 上传到 Hugging Face Hub
+#new_dataset_name = "your_username/resized_ZHONGLI_1024x1024"  # 替换为你的用户名和数据集名称
+#dataset.push_to_hub(new_dataset_name)
+
+#print(f"✅ 数据集已调整并上传至: https://huggingface.co/datasets/{new_dataset_name}")
+dataset.push_to_hub("svjack/ZHONGLI_Holding_A_Sign_Images_MASK_DEPTH_1024x1024")
+
+
 + background remove
 
 https://huggingface.co/spaces/briaai/BRIA-RMBG-1.4
