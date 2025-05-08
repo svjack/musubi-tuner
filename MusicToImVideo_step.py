@@ -3781,3 +3781,342 @@ for j in range(100):
     # shutil.rmtree(temp_dir)
 
 print("All images generated and audio files copied successfully!")
+
+#!/usr/bin/env python3
+"""
+HuggingFace 数据集自动处理脚本
+功能：加载指定数据集 -> 保存所有图片 -> 生成 Ken Burns 效果视频
+用法：python script.py <dataset_name>
+示例：python script.py svjack/Day_if_sentient_beings_SPLITED_ZHONGLI_adult_CARD_0
+"""
+
+pip install datasets librosa soundfile
+
+vim run_3d.py
+
+python run_3d.py svjack/Day_if_sentient_beings_SPLITED_ZHONGLI_adult_CARD_1
+python run_3d.py svjack/Day_if_sentient_beings_SPLITED_ZHONGLI_adult_CARD_2
+
+python run_3d.py svjack/Day_if_sentient_beings_SPLITED_XIAO_adult_CARD_0
+python run_3d.py svjack/Day_if_sentient_beings_SPLITED_XIAO_adult_CARD_1
+python run_3d.py svjack/Day_if_sentient_beings_SPLITED_XIAO_adult_CARD_2
+
+import os
+import argparse
+import subprocess
+from datasets import load_dataset
+from PIL import Image
+from pathlib import Path
+
+def process_dataset(dataset_name):
+    """主处理函数"""
+    # 1. 从参数中提取基础名称（去除用户名部分）
+    base_name = dataset_name.split('/')[-1] if '/' in dataset_name else dataset_name
+
+    # 2. 创建输出目录结构
+    img_dir = f"{base_name}_images"
+    video_dir = f"{base_name}_kenburns_videos"
+    os.makedirs(img_dir, exist_ok=True)
+    os.makedirs(video_dir, exist_ok=True)
+
+    print(f"⏳ 正在加载数据集: {dataset_name}")
+    try:
+        # 3. 加载数据集
+        dataset = load_dataset(dataset_name)
+
+        # 4. 保存所有图片（使用4位数字编号保持顺序）
+        print(f"🖼️ 正在保存图片到: {img_dir}")
+        for idx, example in enumerate(dataset["train"]):
+            if 'image' in example:
+                img = example['image']
+                img_path = os.path.join(img_dir, f"{idx:04d}.png")
+                if isinstance(img, Image.Image):
+                    img.save(img_path)
+                else:
+                    # 如果图像不是PIL格式，尝试转换
+                    Image.fromarray(img).save(img_path)
+            else:
+                print(f"⚠️ 示例 {idx} 中没有找到 'image' 字段")
+
+        # 5. 生成 Ken Burns 效果视频
+        print(f"🎥 正在生成 Ken Burns 效果视频到: {video_dir}")
+        cmd = [
+            "python",
+            "run_kenburns_batch.py",
+            "--cfg", "configs/3dkenburns.yaml",
+            "--input-img", img_dir,
+            "--save_dir", video_dir
+        ]
+
+        subprocess.run(cmd, check=True)
+
+        print(f"✅ 处理完成！图片保存在: {img_dir}")
+        print(f"✅ 视频输出在: {video_dir}")
+
+    except Exception as e:
+        print(f"❌ 处理数据集时出错: {str(e)}")
+        raise
+
+if __name__ == "__main__":
+    # 设置命令行参数解析
+    parser = argparse.ArgumentParser(description='HuggingFace 数据集处理脚本')
+    parser.add_argument('dataset_name', type=str,
+                       help='HuggingFace 数据集名称 (如: svjack/Day_if_sentient_beings_SPLITED_ZHONGLI_adult_CARD_0)')
+
+    args = parser.parse_args()
+
+    # 执行主处理函数
+    process_dataset(args.dataset_name)
+
+#!/usr/bin/env python3
+import os
+from moviepy.editor import *
+import argparse
+
+def main():
+    parser = argparse.ArgumentParser(description='Combine audio and images/videos into a final video.')
+    parser.add_argument('--input_dir', default="Day_if_sentient_beings_SPLITED_ZHONGLI_adult_CARD_0",
+                       help='Directory containing audio and image pairs')
+    parser.add_argument('--kenburns_dir', default="Day_if_sentient_beings_SPLITED_ZHONGLI_adult_CARD_0_kenburns_videos",
+                       help='Directory containing Ken Burns effect videos')
+    parser.add_argument('--output_file', default="Day_if_sentient_beings_SPLITED_ZHONGLI_adult_CARD_0.mp4",
+                       help='Output video file')
+    parser.add_argument('--min_duration', type=float, default=3.0,
+                       help='Minimum audio duration to use Ken Burns video instead of static image')
+    args = parser.parse_args()
+
+    # 获取并排序文件
+    all_files = sorted(os.listdir(args.input_dir))
+    audio_files = [f for f in all_files if f.endswith(".mp3")]
+    image_files = [f for f in all_files if f.endswith(".png")]
+
+    # 获取并排序Ken Burns视频
+    kenburns_files = sorted(os.listdir(args.kenburns_dir) + ["0010.mp4"])
+    kenburns_files = [f for f in kenburns_files if f.endswith(".mp4")]
+
+    # 验证文件配对
+    if len(audio_files) != len(image_files):
+        raise ValueError("音频与图片文件数量不匹配")
+
+    print(len(audio_files), len(kenburns_files))
+
+    if len(audio_files) != len(kenburns_files):
+        raise ValueError("音频与Ken Burns视频文件数量不匹配")
+
+    # 创建独立的video_clips列表
+    video_clips = []
+
+    for idx, (audio_file, image_file, kenburns_file) in enumerate(zip(audio_files, image_files, kenburns_files)):
+        # 加载音频（确保无淡入淡出）
+        audio = AudioFileClip(os.path.join(args.input_dir, audio_file))
+        audio_duration = audio.duration
+
+        # 决定使用静态图片还是Ken Burns视频
+        if audio_duration >= args.min_duration and audio_duration < 7 and os.path.exists(os.path.join(args.kenburns_dir, kenburns_file)):
+            # 使用Ken Burns视频并调整速度以匹配音频长度
+            video_clip = VideoFileClip(os.path.join(args.kenburns_dir, kenburns_file))
+            original_duration = video_clip.duration
+
+            # 计算需要的速度因子
+            speed_factor = original_duration / audio_duration
+            video_clip = video_clip.fx(vfx.speedx, speed_factor)
+            video_clip = video_clip.set_duration(audio_duration)
+        else:
+            # 使用静态图片
+            img_clip = ImageClip(os.path.join(args.input_dir, image_file))
+            img_clip = img_clip.set_duration(audio_duration)
+            video_clip = img_clip
+
+        # 添加淡入淡出效果
+        video_clip = video_clip.fadein(0.3).fadeout(0.3)  # 0.3秒淡入，0.3秒淡出
+
+        # 创建视频片段（图片/视频+音频）
+        video_clip = video_clip.set_audio(audio)
+        video_clips.append(video_clip)
+
+    # 连接所有视频片段（不添加过渡效果）
+    final_video = concatenate_videoclips(video_clips, method="compose")
+
+    # 输出视频（优化编码参数）
+    final_video.write_videofile(
+        args.output_file,
+        codec="libx264",
+        audio_codec="aac",
+        fps=24,
+        threads=8,
+        preset="fast",
+        ffmpeg_params=["-crf", "23"]
+    )
+
+    # 释放资源
+    for clip in video_clips:
+        clip.close()
+    final_video.close()
+
+if __name__ == "__main__":
+    main()
+
+
+python combine.py --input_dir Day_if_sentient_beings_SPLITED_ZHONGLI_adult_CARD_0 \
+ --kenburns_dir Day_if_sentient_beings_SPLITED_ZHONGLI_adult_CARD_0_kenburns_videos \
+ --output_file Day_if_sentient_beings_SPLITED_ZHONGLI_adult_CARD_0.mp4 --min_duration 3
+
+python combine.py --input_dir Day_if_sentient_beings_SPLITED_ZHONGLI_adult_CARD_1 \
+ --kenburns_dir Day_if_sentient_beings_SPLITED_ZHONGLI_adult_CARD_1_kenburns_videos \
+ --output_file Day_if_sentient_beings_SPLITED_ZHONGLI_adult_CARD_1.mp4 --min_duration 3
+
+python combine.py --input_dir Day_if_sentient_beings_SPLITED_ZHONGLI_adult_CARD_2 \
+ --kenburns_dir Day_if_sentient_beings_SPLITED_ZHONGLI_adult_CARD_2_kenburns_videos \
+ --output_file Day_if_sentient_beings_SPLITED_ZHONGLI_adult_CARD_2.mp4 --min_duration 3
+
+python combine.py --input_dir Day_if_sentient_beings_SPLITED_XIAO_adult_CARD_0 \
+ --kenburns_dir Day_if_sentient_beings_SPLITED_XIAO_adult_CARD_0_kenburns_videos \
+ --output_file Day_if_sentient_beings_SPLITED_XIAO_adult_CARD_0.mp4 --min_duration 3
+
+python combine.py --input_dir Day_if_sentient_beings_SPLITED_XIAO_adult_CARD_1 \
+ --kenburns_dir Day_if_sentient_beings_SPLITED_XIAO_adult_CARD_1_kenburns_videos \
+ --output_file Day_if_sentient_beings_SPLITED_XIAO_adult_CARD_1.mp4 --min_duration 3
+
+python combine.py --input_dir Day_if_sentient_beings_SPLITED_XIAO_adult_CARD_2 \
+ --kenburns_dir Day_if_sentient_beings_SPLITED_XIAO_adult_CARD_2_kenburns_videos \
+ --output_file Day_if_sentient_beings_SPLITED_XIAO_adult_CARD_2.mp4 --min_duration 3
+
+vim combine_2.py
+
+#!/usr/bin/env python3
+import os
+from moviepy.editor import *
+import argparse
+
+def main():
+    parser = argparse.ArgumentParser(description='Combine audio and images/videos into a final video.')
+    parser.add_argument('--zhongli_dir', default="Day_if_sentient_beings_SPLITED_ZHONGLI_adult_CARD_0",
+                       help='Directory containing Zhongli audio and image pairs')
+    parser.add_argument('--xiao_dir', default="Day_if_sentient_beings_SPLITED_XIAO_adult_CARD_0",
+                       help='Directory containing Xiao audio and image pairs')
+    parser.add_argument('--zhongli_kenburns_dir', default="Day_if_sentient_beings_SPLITED_ZHONGLI_adult_CARD_0_kenburns_videos",
+                       help='Directory containing Zhongli Ken Burns effect videos')
+    parser.add_argument('--xiao_kenburns_dir', default="Day_if_sentient_beings_SPLITED_XIAO_adult_CARD_0_kenburns_videos",
+                       help='Directory containing Xiao Ken Burns effect videos')
+    parser.add_argument('--output_file', default="Day_if_sentient_beings_SPLITED_combined_CARD_0.mp4",
+                       help='Output video file')
+    parser.add_argument('--min_duration', type=float, default=3.0,
+                       help='Minimum audio duration to use Ken Burns video instead of static image')
+    args = parser.parse_args()
+
+    # 获取并排序Zhongli和Xiao的文件
+    zhongli_files = sorted(os.listdir(args.zhongli_dir))
+    zhongli_audio = [f for f in zhongli_files if f.endswith(".mp3")]
+    zhongli_images = [f for f in zhongli_files if f.endswith(".png")]
+
+    xiao_files = sorted(os.listdir(args.xiao_dir))
+    xiao_audio = [f for f in xiao_files if f.endswith(".mp3")]
+    xiao_images = [f for f in xiao_files if f.endswith(".png")]
+
+    # 获取并排序Ken Burns视频
+    zhongli_kenburns = sorted(os.listdir(args.zhongli_kenburns_dir) + ["0010.mp4"])
+    zhongli_kenburns = [f for f in zhongli_kenburns if f.endswith(".mp4")]
+
+    xiao_kenburns = sorted(os.listdir(args.xiao_kenburns_dir) + ["0010.mp4"])
+    xiao_kenburns = [f for f in xiao_kenburns if f.endswith(".mp4")]
+
+    # 验证文件配对
+    if len(zhongli_audio) != len(zhongli_images) or len(xiao_audio) != len(xiao_images):
+        raise ValueError("音频与图片文件数量不匹配")
+
+    if len(zhongli_audio) != len(zhongli_kenburns) or len(xiao_audio) != len(xiao_kenburns):
+        raise ValueError("音频与Ken Burns视频文件数量不匹配")
+
+    # 确保两个角色的文件数量相同
+    if len(zhongli_audio) != len(xiao_audio):
+        raise ValueError("Zhongli和Xiao的文件数量不匹配")
+
+    # 创建独立的video_clips列表
+    video_clips = []
+
+    for idx in range(len(zhongli_audio)):
+        # 决定使用Zhongli还是Xiao的文件
+        if idx % 2 == 0:  # 偶数索引(0,2,4...)使用Xiao
+            audio_file = os.path.join(args.xiao_dir, xiao_audio[idx])
+            image_file = os.path.join(args.xiao_dir, xiao_images[idx])
+            kenburns_file = os.path.join(args.xiao_kenburns_dir, xiao_kenburns[idx])
+            kenburns_dir = args.xiao_kenburns_dir
+        else:  # 奇数索引(1,3,5...)使用Zhongli
+            audio_file = os.path.join(args.zhongli_dir, zhongli_audio[idx])
+            image_file = os.path.join(args.zhongli_dir, zhongli_images[idx])
+            kenburns_file = os.path.join(args.zhongli_kenburns_dir, zhongli_kenburns[idx])
+            kenburns_dir = args.zhongli_kenburns_dir
+
+        # 加载音频（确保无淡入淡出）
+        audio = AudioFileClip(audio_file)
+        audio_duration = audio.duration
+
+        # 决定使用静态图片还是Ken Burns视频
+        if audio_duration >= args.min_duration and audio_duration < 7 and os.path.exists(kenburns_file):
+            # 使用Ken Burns视频并调整速度以匹配音频长度
+            video_clip = VideoFileClip(kenburns_file)
+            original_duration = video_clip.duration
+
+            # 计算需要的速度因子
+            speed_factor = original_duration / audio_duration
+            video_clip = video_clip.fx(vfx.speedx, speed_factor)
+            video_clip = video_clip.set_duration(audio_duration)
+        else:
+            # 使用静态图片
+            img_clip = ImageClip(image_file)
+            img_clip = img_clip.set_duration(audio_duration)
+            video_clip = img_clip
+
+        # 添加淡入淡出效果
+        video_clip = video_clip.fadein(0.3).fadeout(0.3)  # 0.3秒淡入，0.3秒淡出
+
+        # 创建视频片段（图片/视频+音频）
+        video_clip = video_clip.set_audio(audio)
+        video_clips.append(video_clip)
+
+    # 连接所有视频片段（不添加过渡效果）
+    final_video = concatenate_videoclips(video_clips, method="compose")
+
+    # 输出视频（优化编码参数）
+    final_video.write_videofile(
+        args.output_file,
+        codec="libx264",
+        audio_codec="aac",
+        fps=24,
+        threads=8,
+        preset="fast",
+        ffmpeg_params=["-crf", "23"]
+    )
+
+    # 释放资源
+    for clip in video_clips:
+        clip.close()
+    final_video.close()
+
+if __name__ == "__main__":
+    main()
+
+
+python combine_2.py \
+    --zhongli_dir Day_if_sentient_beings_SPLITED_ZHONGLI_adult_CARD_0 \
+    --xiao_dir Day_if_sentient_beings_SPLITED_XIAO_adult_CARD_0 \
+    --zhongli_kenburns_dir Day_if_sentient_beings_SPLITED_ZHONGLI_adult_CARD_0_kenburns_videos \
+    --xiao_kenburns_dir Day_if_sentient_beings_SPLITED_XIAO_adult_CARD_0_kenburns_videos \
+    --output_file Day_if_sentient_beings_SPLITED_combined_CARD_0.mp4 \
+    --min_duration 3
+
+python combine_2.py \
+    --zhongli_dir Day_if_sentient_beings_SPLITED_ZHONGLI_adult_CARD_1 \
+    --xiao_dir Day_if_sentient_beings_SPLITED_XIAO_adult_CARD_1 \
+    --zhongli_kenburns_dir Day_if_sentient_beings_SPLITED_ZHONGLI_adult_CARD_1_kenburns_videos \
+    --xiao_kenburns_dir Day_if_sentient_beings_SPLITED_XIAO_adult_CARD_1_kenburns_videos \
+    --output_file Day_if_sentient_beings_SPLITED_combined_CARD_1.mp4 \
+    --min_duration 3
+
+python combine_2.py \
+    --zhongli_dir Day_if_sentient_beings_SPLITED_ZHONGLI_adult_CARD_2 \
+    --xiao_dir Day_if_sentient_beings_SPLITED_XIAO_adult_CARD_2 \
+    --zhongli_kenburns_dir Day_if_sentient_beings_SPLITED_ZHONGLI_adult_CARD_2_kenburns_videos \
+    --xiao_kenburns_dir Day_if_sentient_beings_SPLITED_XIAO_adult_CARD_2_kenburns_videos \
+    --output_file Day_if_sentient_beings_SPLITED_combined_CARD_2.mp4 \
+    --min_duration 3
