@@ -354,7 +354,7 @@ pip uninstall fastapi -y
 pip install -r requirements.txt
 python app.py
 
-vim run_9_16.py
+vim run_1024_1024.py
 
 from datasets import load_dataset
 from gradio_client import Client, handle_file
@@ -364,13 +364,13 @@ import tempfile
 from tqdm import tqdm
 
 # Load the dataset
-ds = load_dataset("svjack/Genshin_Impact_XIAO_VENTI_Images")
+ds = load_dataset("svjack/Genshin_Impact_Scaramouche_Images")
 
 # Initialize Gradio client
 client = Client("http://localhost:7860")
 
 # Create output directory if it doesn't exist
-output_dir = "Genshin_Impact_XIAO_VENTI_Images_9_16"
+output_dir = "Genshin_Impact_Scaramouche_Images_1024x1024"
 os.makedirs(output_dir, exist_ok=True)
 
 # Determine the number of digits needed for padding
@@ -391,7 +391,7 @@ for idx, item in tqdm(enumerate(ds["train"])):
         # Process the image through the API
         result = client.predict(
             image=handle_file(temp_image_path),
-            width=720,
+            width=1024,
             height=1024,
             overlap_percentage=10,
             num_inference_steps=8,
@@ -441,3 +441,127 @@ for idx, item in tqdm(enumerate(ds["train"])):
             os.remove(temp_image_path)
 
 print("Processing complete!")
+
+
+import os
+import shutil
+from tqdm import tqdm
+import soundfile as sf
+import torch
+from moviepy.editor import VideoFileClip
+from transformers import Qwen2_5OmniForConditionalGeneration, Qwen2_5OmniProcessor
+from qwen_omni_utils import process_mm_info
+
+# Load model and processor
+print("Loading model and processor...")
+model = Qwen2_5OmniForConditionalGeneration.from_pretrained(
+    "Qwen/Qwen2.5-Omni-3B",
+    torch_dtype=torch.bfloat16,
+    device_map="auto",
+    attn_implementation="flash_attention_2",
+)
+processor = Qwen2_5OmniProcessor.from_pretrained("Qwen/Qwen2.5-Omni-3B")
+USE_AUDIO_IN_VIDEO = False
+
+# System prompt
+'''
+system_prompt = {
+    "role": "system",
+    "content": [
+        {"type": "text", "text": "你是一个Video Captioner,根据我给你的视频生成对应的中文 Caption。不要回复其他内容，也不要进行其他询问。"}
+    ],
+}
+'''
+
+system_text = "你是一个专注于日本动漫的智能Caption生成器，请按以下要求制作中文视频描述：\n" + \
+                    "1. 【人物特征】精确描述：发色渐变/瞳孔纹样/服装细节（如『左肩破损的黑色学生制服』『闪烁星芒的碧绿蛇瞳』）\n" + \
+                    "2. 【景物特征】动态捕捉：天气变化（『雨滴在刀锋上碎裂』）、光影效果（『夕阳将和室拉出三道渐变阴影』）\n" + \
+                    "3. 【动作事件】逐帧解析：战斗动作（『太刀反手居合时刀鞘迸出火星』）、微表情变化（『说话时右眼不自然地抽搐』）\n" + \
+                    "4. 【分镜语言】技术标注：推镜头（『0.5秒内从全景急推到角色颤抖的指尖』）、鱼眼变形（『背景扭曲表现精神冲击』）\n" + \
+                    "5. 【美术风格】特征识别：" + \
+                    "- 赛璐璐：『边缘锐利的色块与高光』" + \
+                    "- 数字绘景：『多层景深合成的蒸汽都市』" + \
+                    "- 特殊效果：『爆衣时飞散的晶体化布料』\n" + \
+                    "6. 【单句描写】在300字以上完成包含3个以上动态细节的复合描写（如『紫绀色马尾辫随后空翻甩出虹彩残影，染血木屐踏碎水面时惊起十七枚银针状雨滴』）"
+
+system_prompt = {
+    "role": "system",
+    "content": [
+        {"type": "text", "text": system_text}
+    ],
+}
+
+# Setup directories
+input_dir = "genshin_impact_KAEDEHARA_KAZUHA_images_and_texts"
+output_dir = "genshin_impact_KAEDEHARA_KAZUHA_images_and_texts_PreProcess"
+
+# Create output directory if it doesn't exist
+os.makedirs(output_dir, exist_ok=True)
+
+def process_video(video_path, output_dir):
+    """Process a single video file and generate caption"""
+    try:
+        # Prepare conversation
+        conversation = [
+            system_prompt,
+            {
+                "role": "user",
+                "content": [
+                    {"type": "image", "image": video_path},
+                    {"type": "text", "text": "使用中文描述这个图片。"}
+                ],
+            },
+        ]
+
+        # Prepare inputs
+        text = processor.apply_chat_template(conversation, add_generation_prompt=True, tokenize=False)
+        audios, images, videos = process_mm_info(conversation, use_audio_in_video=USE_AUDIO_IN_VIDEO)
+        inputs = processor(text=text, audio=audios, images=images, videos=videos,
+                          return_tensors="pt", padding=True, use_audio_in_video=USE_AUDIO_IN_VIDEO)
+        inputs = inputs.to(model.device).to(model.dtype)
+
+        # Generate caption
+        text_ids = model.generate(**inputs, use_audio_in_video=USE_AUDIO_IN_VIDEO, return_audio=False)
+        text = processor.batch_decode(text_ids, skip_special_tokens=True, clean_up_tokenization_spaces=False)
+
+        return text[0]
+    except Exception as e:
+        print(f"Error processing {video_path}: {str(e)}")
+        return None
+
+# Get all MP4 files
+print("Finding video files...")
+video_files = []
+for filename in tqdm(os.listdir(input_dir)):
+    if filename.lower().endswith('.png'):
+        filepath = os.path.join(input_dir, filename)
+        video_files.append((filename, filepath))
+
+print(f"Found {len(video_files)} potential videos")
+
+# Process each video with progress bar
+processed_count = 0
+for filename, filepath in tqdm(video_files, desc="Processing videos"):
+    '''
+    # Check video duration first
+    duration = get_video_duration(filepath)
+    if duration > 30:
+        continue  # Skip videos longer than 30 seconds
+    '''
+    # Generate caption
+    caption = process_video(filepath, output_dir)
+
+    if caption is not None:
+        # Copy video file to output directory
+        output_video_path = os.path.join(output_dir, filename)
+        shutil.copy2(filepath, output_video_path)
+
+        # Save caption as text file
+        txt_filename = os.path.splitext(filename)[0] + '.txt'
+        txt_path = os.path.join(output_dir, txt_filename)
+        with open(txt_path, 'w', encoding='utf-8') as f:
+            f.write(caption)
+
+        processed_count += 1
+
+print(f"Processing complete! Processed {processed_count} videos (≤30s) out of {len(video_files)} total files.")
