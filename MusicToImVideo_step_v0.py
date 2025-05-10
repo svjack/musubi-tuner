@@ -565,3 +565,439 @@ for filename, filepath in tqdm(video_files, desc="Processing videos"):
         processed_count += 1
 
 print(f"Processing complete! Processed {processed_count} videos (≤30s) out of {len(video_files)} total files.")
+
+import os
+import shutil
+
+# Define paths
+source_dir = "genshin_impact_KAEDEHARA_KAZUHA_images_and_texts_PreProcess"
+target_dir = "genshin_impact_KAEDEHARA_KAZUHA_Omni_Captioned"
+
+# Create target directory if it doesn't exist
+os.makedirs(target_dir, exist_ok=True)
+
+# Iterate through files in source directory
+for filename in os.listdir(source_dir):
+    base_name, ext = os.path.splitext(filename)
+
+    # Process .mp4 files (copy directly)
+    if ext.lower() == '.png':
+        src_path = os.path.join(source_dir, filename)
+        dst_path = os.path.join(target_dir, filename)
+        shutil.copy2(src_path, dst_path)
+        print(f"Copied: {filename}")
+
+    # Process .txt files (modify content)
+    elif ext.lower() == '.txt':
+        src_path = os.path.join(source_dir, filename)
+        dst_path = os.path.join(target_dir, filename)
+
+        # Read and process the text file
+        with open(src_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+
+        # Apply the text processing
+        processed_content = content.split("assistant")[-1].strip().replace("女", "男").replace("她", "他")
+
+        # Write the processed content to new file
+        with open(dst_path, 'w', encoding='utf-8') as f:
+            f.write(processed_content)
+
+        print(f"Processed: {filename}")
+
+print("Operation completed successfully!")
+
+#### 散兵 1024
+
+from datasets import load_dataset
+from PIL import Image, ImageOps
+
+def resize_and_pad(image, target_size=(1024, 1024)):
+    # 计算原始图像的宽高比
+    width, height = image.size
+    target_width, target_height = target_size
+    ratio = min(target_width / width, target_height / height)
+
+    # 等比例缩放图像
+    new_size = (int(width * ratio), int(height * ratio))
+    resized_image = image.resize(new_size)
+
+    # 创建一个新的黑色背景图像
+    new_image = Image.new("RGB", target_size, (0, 0, 0))
+
+    # 将缩放后的图像粘贴到新图像的中心
+    new_image.paste(resized_image, ((target_width - new_size[0]) // 2, (target_height - new_size[1]) // 2))
+
+    return new_image
+
+# 加载数据集
+ds = load_dataset("svjack/Genshin_Impact_Scaramouche_Images_Captioned")
+
+# 对数据集中的 image 列进行处理
+def process_example(example):
+    example['image'] = resize_and_pad(example['image'])
+    return example
+
+# 应用处理函数到整个数据集
+ds = ds.map(process_example)
+
+ds = ds["train"]
+import os
+from uuid import uuid1
+os.makedirs("Genshin_Impact_Scaramouche_Images_Captioned_Local")
+
+for ele in ds:
+  uuid_ = uuid1()
+  im_name = os.path.join("Genshin_Impact_Scaramouche_Images_Captioned_Local", "{}.png".format(uuid_))
+  txt_name = os.path.join("Genshin_Impact_Scaramouche_Images_Captioned_Local", "{}.txt".format(uuid_))
+  ele["image"].save(im_name)
+  with open(txt_name, "w") as f:
+    f.write(ele["joy-caption"])
+
+#### 万叶 1024
+huggingface-cli download svjack/Genshin-Impact-Portrait-with-Tags-Filtered-IID-Gender-SP --include="genshin_impact_KAEDEHARA_KAZUHA_images_and_texts/*" --local-dir . --repo-type dataset
+
+#### 散兵x万叶 1024
+
+vim run_couple.py
+
+import torch
+import os
+from diffusers import StableDiffusionXLPipeline
+from diffusers.utils import load_image
+import random
+
+# Function to sanitize filenames
+def sanitize_filename(text):
+    keepcharacters = (' ','.','_')
+    return "".join(c for c in text if c.isalnum() or c in keepcharacters).rstrip().replace(" ", "_")
+
+# Initialize the pipeline
+pipe = StableDiffusionXLPipeline.from_pretrained(
+    "cagliostrolab/animagine-xl-4.0",
+    torch_dtype=torch.float16,
+    use_safetensors=True,
+).to("cuda")
+
+# Define function to generate prompt
+def gen_two_person_prompt(name1, name2, action=""):
+    return f"COUPLE, {name1}, {name2} (genshin impact) highres, masterpiece, {action}"
+
+# Define negative prompt
+negative_prompt = "nsfw,lowres,(bad),text,error,fewer,extra,missing,worst quality,jpeg artifacts,low quality,watermark,unfinished,displeasing,oldest,early,chromatic aberration,signature,extra digits,artistic error,username,scan,[abstract],"
+
+def generate_and_save_image(pipeline, prompt, negative_prompt, seed, save_dir="KAEDEHARA_KAZUHA_X_Scaramouche_Images_Captioned", index=None):
+    os.makedirs(save_dir, exist_ok=True)
+
+    image = pipeline(
+        prompt=prompt,
+        negative_prompt=negative_prompt,
+        generator=torch.manual_seed(seed),
+    ).images[0]
+
+    # Create filename with index prefix for ordering
+    filename = f"{index:03d}_{sanitize_filename(prompt)}_seed_{seed}.png"
+    save_path = os.path.join(save_dir, filename)
+
+    image.save(save_path)
+    print(f"Generated and saved: {save_path}")
+
+# Set names
+name1 = "KAEDEHARA_KAZUHA"
+name2 = "Scaramouche"
+
+# Infinite loop to generate images
+index = 0
+while True:
+    # Generate random seed
+    seed = random.randint(0, 2**32 - 1)
+
+    # Generate prompt without action
+    prompt = gen_two_person_prompt(name1, name2)
+
+    # Generate and save image
+    generate_and_save_image(pipe, prompt, negative_prompt, seed, index=index)
+
+    index += 1
+
+
+from datasets import Dataset, DatasetDict, Image, load_dataset
+import os
+from PIL import Image as PILImage
+
+# 1. Load the existing dataset
+ds = load_dataset("svjack/Day_if_sentient_beings_SPLITED_BY_XIAO_IM_SIGN_DEPTH_TEXT_47")
+existing_train = ds["train"]
+
+# 2. Create a new dataset from the images
+image_dir = "KAEDEHARA_KAZUHA"
+image_files = [f for f in os.listdir(image_dir) if f.startswith("kazuha_") and f.endswith(".png")]
+
+def create_image_dataset(image_files, image_dir):
+    data = []
+    for img_file in image_files:
+        # Extract index from filename (format: kazuha_{group}_{index}_date_time.png)
+        parts = img_file.split("_")
+        group = parts[1]  # e.g., "1", "2", "3"
+        index = int(parts[2])
+
+        '''
+        # Only use files from group "1" to match existing dataset indices
+        if group != "1":
+            continue
+        '''
+
+        # Get corresponding features from existing dataset
+        if index < len(existing_train):
+            features = {
+                "sign_mask": existing_train[index]["sign_mask"],
+                "depth": existing_train[index]["depth"],
+                "mask_image": existing_train[index]["mask_image"]
+            }
+        else:
+            # Handle case where index is out of bounds
+            features = {
+                "sign_mask": None,
+                "depth": None,
+                "mask_image": None
+            }
+
+        # Add image path and features to dataset
+        data.append({
+            "image": os.path.join(image_dir, img_file),
+            **features
+        })
+
+    return Dataset.from_list(data)
+
+# Create the dataset
+image_dataset = create_image_dataset(image_files, image_dir)
+
+# Cast the image column to Image type
+image_dataset = image_dataset.cast_column("image", Image())
+
+# You can now use image_dataset as your new dataset
+# Optionally save it to the hub:
+# image_dataset.push_to_hub("your-username/your-dataset-name")
+
+image_dataset.push_to_hub("svjack/KAEDEHARA_KAZUHA_IM_SIGN_DEPTH_TEXT")
+
+#### card caption
+
+cd joy-caption-alpha-two
+python caption_generator_name_ds_save_interval.py "svjack/KAEDEHARA_KAZUHA_IM_SIGN_DEPTH_TEXT" \
+    --caption_column="joy-caption" \
+    --output_path="KAEDEHARA_KAZUHA_IM_SIGN_DEPTH_TEXT" \
+    --caption_type="Descriptive" \
+    --caption_length="long" \
+    --extra_options 0 1 8 \
+    --save_interval 3000
+
+python caption_generator_name_ds_save_interval.py "svjack/Scaramouche_IM_SIGN_DEPTH_TEXT" \
+    --caption_column="joy-caption" \
+    --output_path="Scaramouche_IM_SIGN_DEPTH_TEXT" \
+    --caption_type="Descriptive" \
+    --caption_length="long" \
+    --extra_options 0 1 8 \
+    --save_interval 3000
+
+#### couple caption
+
+python caption_generator_name_ds_save_interval.py "svjack/Genshin_Impact_KAEDEHARA_KAZUHA_X_Scaramouche" \
+    --caption_column="joy-caption" \
+    --output_path="Genshin_Impact_KAEDEHARA_KAZUHA_X_Scaramouche" \
+    --caption_type="Descriptive" \
+    --caption_length="long" \
+    --extra_options 0 1 8 \
+    --save_interval 3000
+
+#### merge different Source Data
+
+genshin_impact_KAEDEHARA_KAZUHA_images_and_texts
+
+from datasets import load_dataset
+from PIL import Image
+import os
+from uuid import uuid1
+
+def resize_and_pad(image, target_size=(1024, 1024)):
+    # 计算原始图像的宽高比
+    width, height = image.size
+    target_width, target_height = target_size
+    ratio = min(target_width / width, target_height / height)
+
+    # 等比例缩放图像
+    new_size = (int(width * ratio), int(height * ratio))
+    resized_image = image.resize(new_size)
+
+    # 创建一个新的黑色背景图像
+    new_image = Image.new("RGB", target_size, (0, 0, 0))
+
+    # 将缩放后的图像粘贴到新图像的中心
+    new_image.paste(resized_image, ((target_width - new_size[0]) // 2, (target_height - new_size[1]) // 2))
+
+    return new_image
+
+def process_dataset(dataset_name, output_dir, caption_key="joy-caption"):
+    # 加载数据集
+    ds = load_dataset(dataset_name)
+
+    # 对数据集中的 image 列进行处理
+    def process_example(example):
+        example['image'] = resize_and_pad(example['image'])
+        # 移除特定字符串
+        if caption_key in example:
+            example[caption_key] = example[caption_key].replace("In the style of Scaramouche ,", "").strip()
+        return example
+
+    # 应用处理函数到整个数据集
+    ds = ds.map(process_example)
+
+    ds = ds["train"]
+
+    # 创建输出目录
+    os.makedirs(output_dir, exist_ok=True)
+
+    # 保存处理后的图像和文本
+    for ele in ds:
+        uuid_ = uuid1()
+        im_name = os.path.join(output_dir, f"{uuid_}.png")
+        txt_name = os.path.join(output_dir, f"{uuid_}.txt")
+
+        # 保存图像
+        ele["image"].save(im_name)
+
+        # 保存文本
+        if caption_key in ele:
+            with open(txt_name, "w") as f:
+                f.write(ele[caption_key])
+
+# 定义要处理的数据集列表
+datasets = [
+    ("svjack/Genshin_Impact_Scaramouche_Images_Captioned", "Genshin_Impact_Scaramouche_Images_Captioned_Local"),
+    ("svjack/Genshin_Impact_KAEDEHARA_KAZUHA_X_Scaramouche_CAPTION", "Genshin_Impact_KAEDEHARA_KAZUHA_X_Scaramouche_CAPTION_Local"),
+    ("svjack/Scaramouche_IM_SIGN_DEPTH_TEXT_CAPTION", "Scaramouche_IM_SIGN_DEPTH_TEXT_CAPTION_Local"),
+    ("svjack/KAEDEHARA_KAZUHA_IM_SIGN_DEPTH_TEXT_CAPTION", "KAEDEHARA_KAZUHA_IM_SIGN_DEPTH_TEXT_CAPTION_Local")
+]
+
+# 处理所有数据集
+for dataset_name, output_dir in datasets:
+    print(f"Processing dataset: {dataset_name}")
+    process_dataset(dataset_name, output_dir)
+    print(f"Finished processing {dataset_name}. Output saved to {output_dir}")
+
+cp -r ../genshin_impact_KAEDEHARA_KAZUHA_images_and_texts genshin_impact_KAEDEHARA_KAZUHA_images_and_texts_Local
+
+import os
+import shutil
+import uuid
+from pathlib import Path
+
+# 输入结构和路径映射
+structure_mapping = {
+    "In the style of SCARAMOUCHE ,": "Genshin_Impact_Scaramouche_Images_Captioned_Local",
+    "In the style of KAEDEHARA_KAZUHA ,": "genshin_impact_KAEDEHARA_KAZUHA_images_and_texts_Local",
+    "In the style of SCARAMOUCHE KAEDEHARA_KAZUHA ,": "Genshin_Impact_KAEDEHARA_KAZUHA_X_Scaramouche_CAPTION_Local",
+    "In the style of SCARAMOUCHE SIGN ,": "Scaramouche_IM_SIGN_DEPTH_TEXT_CAPTION_Local",
+    "In the style of KAEDEHARA_KAZUHA SIGN ,": "KAEDEHARA_KAZUHA_IM_SIGN_DEPTH_TEXT_CAPTION_Local"
+}
+
+# 目标目录
+target_dir = "Genshin_Impact_KAEDEHARA_KAZUHA_Scaramouche_SIGN_CAPTION"
+
+def process_files():
+    # 创建目标目录
+    os.makedirs(target_dir, exist_ok=True)
+
+    for prefix, source_dir in structure_mapping.items():
+        # 确保源目录存在
+        if not os.path.exists(source_dir):
+            print(f"Warning: Source directory {source_dir} does not exist, skipping...")
+            continue
+
+        # 遍历源目录中的文件
+        for filename in os.listdir(source_dir):
+            base_name, ext = os.path.splitext(filename)
+
+            # 只处理成对的文件（.png 和对应的 .txt）
+            if ext.lower() == '.png':
+                txt_file = f"{base_name}.txt"
+                png_path = os.path.join(source_dir, filename)
+                txt_path = os.path.join(source_dir, txt_file)
+
+                # 检查对应的txt文件是否存在
+                if not os.path.exists(txt_path):
+                    print(f"Warning: Missing text file for {filename}, skipping...")
+                    continue
+
+                # 生成新的UUID文件名
+                new_uuid = str(uuid.uuid4())
+                new_png_name = f"{new_uuid}.png"
+                new_txt_name = f"{new_uuid}.txt"
+
+                # 创建目标路径
+                new_png_path = os.path.join(target_dir, new_png_name)
+                new_txt_path = os.path.join(target_dir, new_txt_name)
+
+                # 拷贝png文件
+                shutil.copy2(png_path, new_png_path)
+
+                # 处理txt文件：添加前缀并拷贝
+                with open(txt_path, 'r', encoding='utf-8') as f:
+                    original_content = f.read()
+
+                new_content = f"{prefix}\n{original_content}"
+
+                with open(new_txt_path, 'w', encoding='utf-8') as f:
+                    f.write(new_content)
+
+                print(f"Copied and renamed: {filename} -> {new_png_name}")
+                print(f"Processed text: {txt_file} -> {new_txt_name}")
+
+if __name__ == "__main__":
+    process_files()
+    print("File processing completed!")
+
+
+
+python wan_cache_latents.py --dataset_config image.toml --vae Wan2.1_VAE.pth
+
+python wan_cache_text_encoder_outputs.py --dataset_config image.toml --t5 models_t5_umt5-xxl-enc-bf16.pth --batch_size 16
+
+accelerate launch --num_cpu_threads_per_process 1 --mixed_precision bf16 wan_train_network.py \
+    --task t2v-1.3B --t5 models_t5_umt5-xxl-enc-bf16.pth \
+    --dit wan2.1_t2v_1.3B_bf16.safetensors \
+    --dataset_config image.toml --sdpa --mixed_precision bf16 --fp8_base \
+    --optimizer_type adamw8bit --learning_rate 2e-4 --gradient_checkpointing \
+    --max_data_loader_n_workers 2 --persistent_data_loader_workers \
+    --network_module networks.lora_wan --network_dim 32 \
+    --timestep_sampling shift --discrete_flow_shift 3.0 \
+    --max_train_epochs 500 --save_every_n_epochs 1 --seed 42 \
+    --output_dir KAEDEHARA_KAZUHA_X_Scaramouche_outputs --output_name KAEDEHARA_KAZUHA_X_Scaramouche_w1_3_lora
+
+accelerate launch --num_cpu_threads_per_process 1 --mixed_precision bf16 wan_train_network.py \
+    --task t2v-14B --t5 models_t5_umt5-xxl-enc-bf16.pth \
+    --dit wan2.1_t2v_14B_bf16.safetensors \
+    --dataset_config image.toml --sdpa --mixed_precision bf16 --fp8_base \
+    --optimizer_type adamw8bit --learning_rate 2e-4 --gradient_checkpointing \
+    --max_data_loader_n_workers 2 --persistent_data_loader_workers \
+    --network_module networks.lora_wan --network_dim 32 \
+    --timestep_sampling shift --discrete_flow_shift 3.0 \
+    --max_train_epochs 500 --save_every_n_epochs 1 --seed 42 \
+    --output_dir KAEDEHARA_KAZUHA_X_Scaramouche_w14_outputs --output_name KAEDEHARA_KAZUHA_X_Scaramouche_w14_lora
+
+
+git clone https://github.com/ostris/ai-toolkit.git
+cd ai-toolkit
+git submodule update --init --recursive
+# install torch first
+pip install --no-cache-dir torch==2.6.0 torchvision==0.21.0
+pip install -r requirements.txt
+pip install datasets
+pip install hf_xet
+
+edit os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "0" in run.py
+
+cp config/examples/train_lora_chroma_24gb.yaml config
+
+python run.py config/train_lora_chroma_24gb.yaml
