@@ -574,3 +574,254 @@ if __name__ == "__main__":
     # processed_dataset.push_to_hub("your_hub_repo_name")
 
 processed_dataset.push_to_hub("svjack/Xiang_Card_DreamO_After_Tomorrow_SPLITED_LBM_Relight_SIGN")
+
+sudo apt-get update && sudo apt-get install cbm ffmpeg git-lfs
+
+from datasets import load_dataset
+import os
+from PIL import Image
+import io
+
+# 加载数据集
+ds = load_dataset("svjack/Xiang_Card_DreamO_After_Tomorrow_SPLITED_LBM_Relight_SIGN_Adjust")
+
+# 创建保存目录
+output_dir = "adjusted_images"
+os.makedirs(output_dir, exist_ok=True)
+
+# 保存adjust_image列
+for idx, item in enumerate(ds["train"]):
+    if "adjust_image" in item:
+        image = item["adjust_image"]
+
+        # 如果图像是字节格式
+        if isinstance(image, bytes):
+            img = Image.open(io.BytesIO(image))
+        # 如果图像已经是PIL.Image格式
+        elif hasattr(image, "save"):
+            img = image
+        else:
+            continue
+
+        # 按字典序命名 (使用索引确保唯一性)
+        filename = f"adjusted_{idx:05d}.png"
+        img.save(os.path.join(output_dir, filename))
+
+print(f"所有adjust_image已保存到 {output_dir} 目录")
+
+from datasets import load_dataset
+import os
+from PIL import Image
+import io
+
+# 加载数据集
+ds = load_dataset("svjack/Xiang_Card_DreamO_After_Tomorrow_SPLITED_composite")
+
+# 创建保存目录
+output_dir = "composite_images"
+os.makedirs(output_dir, exist_ok=True)
+
+# 保存composite_image列
+for idx, item in enumerate(ds["train"]):
+    if "composite_image" in item:
+        image = item["composite_image"]
+
+        # 如果图像是字节格式
+        if isinstance(image, bytes):
+            img = Image.open(io.BytesIO(image))
+        # 如果图像已经是PIL.Image格式
+        elif hasattr(image, "save"):
+            img = image
+        else:
+            continue
+
+        # 按字典序命名 (使用索引确保唯一性)
+        filename = f"composite_{idx:05d}.png"
+        img.save(os.path.join(output_dir, filename))
+
+print(f"所有composite_image已保存到 {output_dir} 目录")
+
+adjusted_images
+
+composite_image
+
+使用下面的api 对 adjusted_images 路径下的所有视频进行遍历
+
+from gradio_client import Client, handle_file
+
+client = Client("http://localhost:7860")
+result = client.predict(
+		input_image=handle_file('adjusted_images/adjusted_00000.png'),
+		input_mask=handle_file('white_background.png'),
+		prompt="a man hold a sign in dynamic landscape.",
+		t2v=False,
+		n_prompt="",
+		seed=31337,
+		total_second_length=4,
+		latent_window_size=9,
+		steps=25,
+		cfg=1,
+		gs=10,
+		rs=0,
+		gpu_memory_preservation=6,
+		use_teacache=True,
+		mp4_crf=16,
+		api_name="/process"
+)
+print(result)
+
+from shutil import copy2
+copy2(result[0]["video"], result[0]["video"].split("/")[-1])
+
+将结果保存到一个新的输出路径 并保持输出文件名与图片名称相同，但为mp4 文件 tqdm 打印流程
+
+vim run_adj.py
+
+from gradio_client import Client, handle_file
+import os
+from pathlib import Path
+from tqdm import tqdm
+import time
+
+# Initialize client
+client = Client("http://localhost:7860")
+
+# Directories
+input_dir = 'adjusted_images'
+output_dir = 'adjusted_images_mp4'
+mask_path = 'white_background.png'
+
+# Create output directory if it doesn't exist
+Path(output_dir).mkdir(parents=True, exist_ok=True)
+
+# Get all PNG files in input directory
+input_files = [f for f in os.listdir(input_dir) if f.lower().endswith('.png')]
+input_files = [os.path.join(input_dir, f) for f in input_files]
+
+# Process each file with progress tracking
+for input_path in tqdm(input_files, desc="Processing images"):
+    # Get base filename without extension
+    base_name = os.path.splitext(os.path.basename(input_path))[0]
+    output_path = os.path.join(output_dir, f"{base_name}.mp4")
+
+    # Skip if output already exists
+    if os.path.exists(output_path):
+        tqdm.write(f"Skipping {input_path} - output already exists")
+        continue
+
+    # Process with individual progress bar
+    with tqdm(total=100, desc=f"Generating {base_name}", leave=False) as pbar:
+        # Wrap the prediction in a function to update progress
+        def progress_callback(progress_data):
+            if isinstance(progress_data, dict) and 'progress' in progress_data:
+                pbar.update(progress_data['progress'] - pbar.n)
+
+        try:
+            result = client.predict(
+                input_image=handle_file(input_path),
+                input_mask=handle_file(mask_path),
+                prompt="a slient quiet smile man hold a sign in dynamic landscape.",
+                t2v=False,
+                n_prompt="singing, say, open mouth",
+                seed=31337,
+                total_second_length=4,
+                latent_window_size=9,
+                steps=25,
+                cfg=1,
+                gs=10,
+                rs=0,
+                gpu_memory_preservation=6,
+                use_teacache=True,
+                mp4_crf=16,
+                api_name="/process"
+            )
+
+            # Get the generated video path
+            generated_video = result[0]["video"]
+
+            # Copy to our output directory with consistent naming
+            os.rename(generated_video, output_path)
+
+            tqdm.write(f"Successfully processed {input_path} -> {output_path}")
+
+        except Exception as e:
+            tqdm.write(f"Error processing {input_path}: {str(e)}")
+            continue
+
+print("All files processed!")
+
+from gradio_client import Client, handle_file
+import os
+from pathlib import Path
+from tqdm import tqdm
+import time
+
+# Initialize client
+client = Client("http://localhost:7860")
+
+# Directories
+input_dir = 'composite_images'
+output_dir = 'composite_images_mp4'
+mask_path = 'white_background.png'
+
+# Create output directory if it doesn't exist
+Path(output_dir).mkdir(parents=True, exist_ok=True)
+
+# Get all PNG files in input directory
+input_files = [f for f in os.listdir(input_dir) if f.lower().endswith('.png')]
+input_files = [os.path.join(input_dir, f) for f in input_files]
+
+# Process each file with progress tracking
+for input_path in tqdm(input_files, desc="Processing images"):
+    # Get base filename without extension
+    base_name = os.path.splitext(os.path.basename(input_path))[0]
+    output_path = os.path.join(output_dir, f"{base_name}.mp4")
+
+    # Skip if output already exists
+    if os.path.exists(output_path):
+        tqdm.write(f"Skipping {input_path} - output already exists")
+        continue
+
+    # Process with individual progress bar
+    with tqdm(total=100, desc=f"Generating {base_name}", leave=False) as pbar:
+        # Wrap the prediction in a function to update progress
+        def progress_callback(progress_data):
+            if isinstance(progress_data, dict) and 'progress' in progress_data:
+                pbar.update(progress_data['progress'] - pbar.n)
+
+        try:
+            result = client.predict(
+                input_image=handle_file(input_path),
+                input_mask=handle_file(mask_path),
+                prompt="a slient quiet smile man hold a sign in dynamic landscape.",
+                t2v=False,
+                n_prompt="singing, say, open mouth",
+                seed=31337,
+                total_second_length=4,
+                latent_window_size=9,
+                steps=25,
+                cfg=1,
+                gs=10,
+                rs=0,
+                gpu_memory_preservation=6,
+                use_teacache=True,
+                mp4_crf=16,
+                api_name="/process"
+            )
+
+            # Get the generated video path
+            generated_video = result[0]["video"]
+
+            # Copy to our output directory with consistent naming
+            os.rename(generated_video, output_path)
+
+            tqdm.write(f"Successfully processed {input_path} -> {output_path}")
+
+        except Exception as e:
+            tqdm.write(f"Error processing {input_path}: {str(e)}")
+            continue
+
+print("All files processed!")
+
+
+https://huggingface.co/spaces/fffiloni/LatentSync
