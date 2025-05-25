@@ -128,6 +128,63 @@ accelerate launch --num_cpu_threads_per_process 1 --mixed_precision bf16 wan_tra
     --output_dir RAIDEN_SHOGUN_outputs --output_name RAIDEN_SHOGUN_w1_3_lora
 ```
 
+#### batch inference
+```bash
+import pandas as pd
+text = "\n".join(pd.read_csv("Origin_Images_Captioned/metadata.csv")["prompt"].map(
+    lambda x: "A dynamic anime landscape Video ," + x
+).map(
+    lambda x: x.replace("\n" , " ")
+).head(2).values.tolist())
+with open("Origin_prompt_2.txt", "w") as f:
+    f.write(text)
+
+text = "\n".join(pd.read_csv("Origin_Images_Captioned/metadata.csv")["prompt"].map(
+    lambda x: "A dynamic anime landscape Video ," + x
+).map(
+    lambda x: x.replace("\n" , " ")
+).values.tolist())
+with open("Origin_prompt.txt", "w") as f:
+    f.write(text)
+
+python wan_generate_video.py --fp8 --task t2v-1.3B --video_size 480 832 --video_length 81 --infer_steps 35 \
+--save_path Origin_save --output_type video \
+--dit wan2.1_t2v_1.3B_bf16.safetensors --vae Wan2.1_VAE.pth \
+--t5 models_t5_umt5-xxl-enc-bf16.pth \
+--attn_mode torch \
+--lora_weight Origin_outputs/Origin_w1_3_lora-000008.safetensors \
+--lora_multiplier 1.0 \
+--from_file Origin_prompt.txt
+
+
+import pandas as pd
+text = "\n".join(pd.read_csv("Dont_be_your_lover_Images_Captioned/metadata.csv")["prompt"].map(
+    lambda x: "A dynamic anime landscape Video ," + x
+).map(
+    lambda x: x.replace("\n" , " ")
+).head(2).values.tolist())
+with open("Dont_be_your_lover_prompt_2.txt", "w") as f:
+    f.write(text)
+
+text = "\n".join(pd.read_csv("Dont_be_your_lover_Images_Captioned/metadata.csv")["prompt"].map(
+    lambda x: "A dynamic anime landscape Video ," + x
+).map(
+    lambda x: x.replace("\n" , " ")
+).values.tolist())
+with open("Dont_be_your_lover_prompt.txt", "w") as f:
+    f.write(text)
+
+python wan_generate_video.py --fp8 --task t2v-1.3B --video_size 480 832 --video_length 81 --infer_steps 35 \
+--save_path Dont_be_your_lover_save --output_type video \
+--dit wan2.1_t2v_1.3B_bf16.safetensors --vae Wan2.1_VAE.pth \
+--t5 models_t5_umt5-xxl-enc-bf16.pth \
+--attn_mode torch \
+--lora_weight Dont_be_your_lover_outputs/Dont_be_your_lover_w1_3_lora-000034.safetensors \
+--lora_multiplier 1.0 \
+--from_file Dont_be_your_lover_prompt.txt
+
+```
+
 ### 6.2 Train for 14B Model
 
 Train the 14B model:
