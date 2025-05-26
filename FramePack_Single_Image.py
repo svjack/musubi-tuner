@@ -333,3 +333,171 @@ python fpack_generate_video.py \
     --save_path real_save --video_sections 1 --output_type latent_images --one_frame_inference zero_post \
     --seed 1234 --lora_multiplier 1.0 --lora_weight framepack_sign_output/framepack-sign-lora-000004.safetensors
 
+import os
+from datasets import Dataset, Image
+
+def create_huggingface_dataset(prompt_file, image_dir):
+    # 读取prompt文件，解析prompt和mask_image
+    prompts = []
+    mask_images = []
+    with open(prompt_file, 'r', encoding='utf-8') as f:
+        for line in f:
+            parts = line.strip().split(' --i ')
+            prompt = parts[0]
+            mask_image = parts[1] if len(parts) > 1 else None
+            prompts.append(prompt)
+            mask_images.append(mask_image)
+
+    # 获取并排序PNG文件
+    png_files = sorted([f for f in os.listdir(image_dir) if f.endswith('.png')])
+    image_paths = [os.path.join(image_dir, f) for f in png_files]
+
+    # 确保数据长度一致
+    min_length = min(len(prompts), len(image_paths))
+    prompts = prompts[:min_length]
+    mask_images = mask_images[:min_length]
+    image_paths = image_paths[:min_length]
+
+    # 创建数据集字典
+    data_dict = {
+        "prompt": prompts,
+        "mask_image": mask_images,
+        "image": image_paths
+    }
+
+    # 创建Hugging Face数据集
+    dataset = Dataset.from_dict(data_dict)
+    dataset = dataset.cast_column("mask_image", Image())
+    dataset = dataset.cast_column("image", Image())
+    return dataset
+
+# 使用示例
+prompt_file = "manga_sign_prompt_with_images.txt"
+image_dir = "manga_save"
+dataset = create_huggingface_dataset(prompt_file, image_dir)
+
+dataset.push_to_hub("svjack/FramePack_mask_to_sign_dataset_0")
+
+import os
+os.environ['HF_ENDPOINT'] = 'https://hf-mirror.com'
+
+!pip install -U datasets
+
+from datasets import Dataset, load_dataset
+
+# 流式加载数据集
+ds = load_dataset("UCSC-VLAA/HQ-Edit", streaming=True)
+
+# 提取前 2500 个样本
+samples = []
+for batch in ds["train"].take(2500):
+    samples.append(batch)
+
+# 转换为新的 Dataset 对象
+new_dataset = Dataset.from_dict({
+    "input": [sample["input"] for sample in samples],
+    "input_image": [sample["input_image"] for sample in samples],
+    "edit": [sample["edit"] for sample in samples],
+    "inverse_edit": [sample["inverse_edit"] for sample in samples],
+    "output": [sample["output"] for sample in samples],
+    "output_image": [sample["output_image"] for sample in samples],
+})
+
+# 保存到磁盘（可选）
+#new_dataset.save_to_disk("hq_edit_2500_samples")
+
+new_dataset.push_to_hub("svjack/HQ-Edit-Sample-2500")
+
+from datasets import load_dataset
+import cv2
+import numpy as np
+import os
+from tqdm import tqdm
+
+# 目标尺寸
+TARGET_WIDTH = 512
+TARGET_HEIGHT = 512
+
+# 创建输出目录
+os.makedirs("edit_output/control_directory", exist_ok=True)
+os.makedirs("edit_output/image_directory", exist_ok=True)
+
+# 流式加载并处理数据集
+for i, sample in tqdm(enumerate(load_dataset("UCSC-VLAA/HQ-Edit", streaming=True)["train"].take(2500)),
+                      total=2500,
+                      desc="Processing samples"):
+    # 生成文件名前缀，格式为000i
+    filename_prefix = f"{i:04d}"
+
+    # 处理 input_image（保持宽高比 + 居中填充）
+    input_img = cv2.cvtColor(np.array(sample["input_image"]), cv2.COLOR_RGB2BGR)
+    h, w = input_img.shape[:2]
+    scale = min(TARGET_WIDTH / w, TARGET_HEIGHT / h)
+    new_w = int(w * scale)
+    new_h = int(h * scale)
+    resized_img = cv2.resize(input_img, (new_w, new_h), interpolation=cv2.INTER_AREA)
+    background = np.zeros((TARGET_HEIGHT, TARGET_WIDTH, 3), dtype=np.uint8)
+    x_offset = (TARGET_WIDTH - new_w) // 2
+    y_offset = (TARGET_HEIGHT - new_h) // 2
+    background[y_offset:y_offset+new_h, x_offset:x_offset+new_w] = resized_img
+    cv2.imwrite(f"edit_output/control_directory/{filename_prefix}.png", background)
+
+    # 保存 edit 文本
+    with open(f"edit_output/image_directory/{filename_prefix}.txt", "w") as f:
+        f.write(sample["edit"])
+
+    # 处理 output_image（保持宽高比 + 居中填充）
+    output_img = cv2.cvtColor(np.array(sample["output_image"]), cv2.COLOR_RGB2BGR)
+    h, w = output_img.shape[:2]
+    scale = min(TARGET_WIDTH / w, TARGET_HEIGHT / h)
+    new_w = int(w * scale)
+    new_h = int(h * scale)
+    resized_img = cv2.resize(output_img, (new_w, new_h), interpolation=cv2.INTER_AREA)
+    background = np.zeros((TARGET_HEIGHT, TARGET_WIDTH, 3), dtype=np.uint8)
+    x_offset = (TARGET_WIDTH - new_w) // 2
+    y_offset = (TARGET_HEIGHT - new_h) // 2
+    background[y_offset:y_offset+new_h, x_offset:x_offset+new_w] = resized_img
+    cv2.imwrite(f"edit_output/image_directory/{filename_prefix}.png", background)
+
+
+#### toml
+vim fp_single.toml
+
+[general]
+resolution = [512, 512]
+caption_extension = ".txt"
+batch_size = 1
+enable_bucket = true
+bucket_no_upscale = false
+
+[[datasets]]
+image_directory = "edit_output/image_directory"
+control_directory = "edit_output/control_directory"
+cache_directory = "edit_output/cache_directory"
+
+python fpack_cache_latents.py \
+    --dataset_config fp_single.toml \
+    --vae HunyuanVideo/vae/diffusion_pytorch_model.safetensors \
+    --image_encoder sigclip_vision_384/sigclip_vision_patch14_384.safetensors \
+    --vae_chunk_size 32 --vae_spatial_tile_sample_min_size 128 --one_frame --latent_window_size 9
+
+python fpack_cache_text_encoder_outputs.py \
+    --dataset_config fp_single.toml \
+    --text_encoder1 HunyuanVideo_repackaged/split_files/text_encoders/llava_llama3_fp16.safetensors \
+    --text_encoder2 HunyuanVideo_repackaged/split_files/text_encoders/clip_l.safetensors \
+    --batch_size 16
+
+accelerate launch --num_cpu_threads_per_process 1 --mixed_precision bf16 fpack_train_network.py \
+    --dit FramePackI2V_HY/diffusion_pytorch_model-00001-of-00003.safetensors \
+    --vae HunyuanVideo/vae/diffusion_pytorch_model.safetensors \
+    --text_encoder1 HunyuanVideo_repackaged/split_files/text_encoders/llava_llama3_fp16.safetensors \
+    --text_encoder2 HunyuanVideo_repackaged/split_files/text_encoders/clip_l.safetensors \
+    --image_encoder sigclip_vision_384/sigclip_vision_patch14_384.safetensors \
+    --dataset_config fp_single.toml \
+    --sdpa --mixed_precision bf16 \
+    --optimizer_type adamw8bit --learning_rate 2e-4 --gradient_checkpointing \
+    --timestep_sampling shift --weighting_scheme none --discrete_flow_shift 3.0 \
+    --max_data_loader_n_workers 2 --persistent_data_loader_workers \
+    --network_module networks.lora_framepack --network_dim 32 \
+    --max_train_epochs 5000 --save_every_n_epochs 1 --seed 42 \
+    --output_dir framepack_edit_output --output_name framepack-edit-lora --one_frame
