@@ -228,7 +228,7 @@ Generate a video using the 14B model:
 ```bash
 python wan_generate_video.py --fp8 --task t2v-14B --video_size 832 480 --video_length 81 --infer_steps 20 \
 --save_path save --output_type both \
---dit wan2.1_t2v_1.3B_bf16.safetensors --vae Wan2.1_VAE.pth \
+--dit wan2.1_t2v_14B_bf16.safetensors --vae Wan2.1_VAE.pth \
 --t5 models_t5_umt5-xxl-enc-bf16.pth \
 --attn_mode torch \
 --lora_weight RAIDEN_SHOGUN_outputs/RAIDEN_SHOGUN_w1_3_lora-000002.safetensors \
