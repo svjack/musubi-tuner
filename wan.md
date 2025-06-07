@@ -202,6 +202,20 @@ accelerate launch --num_cpu_threads_per_process 1 --mixed_precision bf16 wan_tra
     --output_dir RAIDEN_SHOGUN_w14_outputs --output_name RAIDEN_SHOGUN_w14_lora
 ```
 
+```bash
+accelerate launch --num_cpu_threads_per_process 1 --mixed_precision bf16 wan_train_network.py \
+    --task t2v-14B --t5 models_t5_umt5-xxl-enc-bf16.pth \
+    --dit wan2.1_t2v_14B_bf16.safetensors \
+    --dataset_config video_config.toml --sdpa --mixed_precision bf16 --fp8_base \
+    --optimizer_type adamw8bit --learning_rate 2e-4 --gradient_checkpointing \
+    --max_data_loader_n_workers 2 --persistent_data_loader_workers \
+    --network_module networks.lora_wan --network_dim 32 \
+    --timestep_sampling shift --discrete_flow_shift 3.0 \
+    --max_train_epochs 5000 --save_every_n_steps 500 --seed 42 \
+    --output_dir ani_landscape_w14_outputs --output_name ani_landscape_w14_lora \
+    --sample_prompts landscape.txt --sample_every_n_steps 100 --sample_at_first --vae Wan2.1_VAE.pth
+```
+
 ---
 
 ## 7. Inference
