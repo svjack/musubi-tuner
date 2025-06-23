@@ -39,7 +39,8 @@ Install the required Python packages:
 
 ```bash
 pip install torch torchvision
-pip install -r requirements.txt
+#pip install -r requirements.txt
+pip install -e .
 pip install ascii-magic matplotlib tensorboard huggingface_hub datasets
 pip install moviepy==1.0.3
 pip install sageattention==1.0.6
