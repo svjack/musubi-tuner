@@ -461,6 +461,74 @@ target_frames = [1, 25]
 frame_extraction = "head"
 ```
 
+```python
+import os
+import shutil
+from PIL import Image
+from tqdm import tqdm
+
+def resize_and_copy_pairs(input_dir, output_dir, max_size=768):
+    """
+    处理PNG-TXT文件对：
+    1. PNG文件等比例缩放到最大边长不超过max_size
+    2. TXT文件直接复制
+    3. 保持原始文件名不变
+    
+    :param input_dir: 输入文件夹路径
+    :param output_dir: 输出文件夹路径
+    :param max_size: 最大边长（默认768）
+    """
+    # 确保输出目录存在
+    os.makedirs(output_dir, exist_ok=True)
+    
+    # 获取所有PNG文件
+    png_files = [f for f in os.listdir(input_dir) if f.lower().endswith('.png')]
+    
+    # 处理每个PNG-TXT对
+    for png_file in tqdm(png_files, desc="Processing images"):
+        try:
+            # 构造文件路径
+            png_path = os.path.join(input_dir, png_file)
+            txt_file = png_file.replace('.png', '.txt')
+            txt_path = os.path.join(input_dir, txt_file)
+            
+            # 处理PNG文件（等比例缩放）
+            with Image.open(png_path) as img:
+                # 计算缩放比例[2,10](@ref)
+                width, height = img.size
+                scale = min(max_size/width, max_size/height)
+                new_width = int(width * scale)
+                new_height = int(height * scale)
+                
+                # 高质量缩放（使用LANCZOS重采样）[4,9](@ref)
+                resized_img = img.resize((new_width, new_height), Image.LANCZOS)
+                
+                # 保存缩放后的PNG（保留原始元数据）
+                output_png = os.path.join(output_dir, png_file)
+                resized_img.save(output_png, format='PNG')
+            
+            # 处理对应的TXT文件（直接复制）
+            if os.path.exists(txt_path):
+                output_txt = os.path.join(output_dir, txt_file)
+                shutil.copy2(txt_path, output_txt)
+            else:
+                print(f"\nWarning: Missing TXT file for {png_file}")
+                
+        except Exception as e:
+            print(f"\nError processing {png_file}: {str(e)}")
+
+# 使用示例
+input_folder = "Knife_Glass_Captioned"
+output_folder = "Resized_Knife_Glass_Captioned"
+
+if os.path.exists(input_folder):
+    resize_and_copy_pairs(input_folder, output_folder)
+    print(f"\n处理完成！结果保存至: {output_folder}")
+else:
+    print(f"输入目录不存在: {input_folder}")
+
+```
+
 ### 8.5 Train Pixel Art Model
 
 Train the pixel art model:
