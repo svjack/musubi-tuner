@@ -227,7 +227,7 @@ accelerate launch --num_cpu_threads_per_process 1  wan_train_network.py \
     --network_module networks.lora_wan --network_dim 32 \
     --timestep_sampling shift --discrete_flow_shift 3.0 \
     --max_train_epochs 5000 --save_every_n_steps 500 --seed 42 \
-    --preserve_distribution_shape --min_timestep 0 --max_timestep 875 \
+    --preserve_distribution_shape --min_timestep 875 --max_timestep 1000 \
     --output_dir Skirk_w14_high_outputs --output_name Skirk_w14_high_lora \
     --sample_prompts Skirk.txt --sample_every_n_steps 500 --sample_at_first --vae Wan2.1_VAE.pth
 
@@ -241,7 +241,7 @@ accelerate launch --num_cpu_threads_per_process 1  wan_train_network.py \
     --network_module networks.lora_wan --network_dim 32 \
     --timestep_sampling shift --discrete_flow_shift 3.0 \
     --max_train_epochs 5000 --save_every_n_steps 500 --seed 42 \
-    --preserve_distribution_shape --min_timestep 875 --max_timestep 1000 \
+    --preserve_distribution_shape --min_timestep 0 --max_timestep 875 \
     --output_dir Skirk_w14_low_outputs --output_name Skirk_w14_low_lora \
     --sample_prompts Skirk.txt --sample_every_n_steps 500 --sample_at_first --vae Wan2.1_VAE.pth
 ```
