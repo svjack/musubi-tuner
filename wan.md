@@ -430,6 +430,138 @@ def change_resolution_and_save(input_path, output_path, target_width=1024, targe
                 except Exception as e:
                     print(f"Failed to process video {file_path}: {e}")
 
+import os
+import cv2
+import numpy as np
+from moviepy.editor import VideoFileClip
+from tqdm import tqdm
+import shutil
+
+def change_resolution_and_save(input_path, output_path, target_width=1024, target_height=768, max_duration=4):
+    """Process images and videos to target resolution and split videos into segments (keeping only the first segment)."""
+    os.makedirs(output_path, exist_ok=True)
+
+    for root, dirs, files in os.walk(input_path):
+        for file in tqdm(files, desc="Processing files"):
+            file_path = os.path.join(root, file)
+            relative_path = os.path.relpath(file_path, input_path)
+            output_dir = os.path.dirname(os.path.join(output_path, relative_path))
+
+            # Process images (unchanged)
+            if file.lower().endswith(('.png', '.jpg', '.jpeg')):
+                try:
+                    img = cv2.imread(file_path)
+                    h, w = img.shape[:2]
+                    scale = min(target_width / w, target_height / h)
+                    new_w = int(w * scale)
+                    new_h = int(h * scale)
+                    resized_img = cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_AREA)
+                    background = np.zeros((target_height, target_width, 3), dtype=np.uint8)
+                    x_offset = (target_width - new_w) // 2
+                    y_offset = (target_height - new_h) // 2
+                    background[y_offset:y_offset+new_h, x_offset:x_offset+new_w] = resized_img
+                    output_file_path = os.path.join(output_path, relative_path)
+                    os.makedirs(os.path.dirname(output_file_path), exist_ok=True)
+                    cv2.imwrite(output_file_path, background)
+
+                    # Copy corresponding txt file
+                    base_name = os.path.splitext(file)[0]
+                    txt_source = os.path.join(root, f"{base_name}.txt")
+                    if os.path.exists(txt_source):
+                        txt_target = os.path.join(output_dir, f"{base_name}.txt")
+                        shutil.copy2(txt_source, txt_target)
+                except Exception as e:
+                    print(f"Failed to process image {file_path}: {e}")
+
+            # Process videos (modified to keep only first segment)
+            elif file.lower().endswith('.mp4'):
+                try:
+                    clip = VideoFileClip(file_path)
+                    total_duration = clip.duration
+                    base_name = os.path.splitext(file)[0]
+
+                    if total_duration <= max_duration:
+                        # Process the entire video (unchanged)
+                        output_filename = f"{base_name}.mp4"
+                        output_file_path = os.path.join(output_dir, output_filename)
+                        os.makedirs(os.path.dirname(output_file_path), exist_ok=True)
+
+                        def process_frame(frame):
+                            img = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+                            h, w = img.shape[:2]
+                            scale = min(target_width / w, target_height / h)
+                            new_w = int(w * scale)
+                            new_h = int(h * scale)
+                            resized_img = cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_AREA)
+                            background = np.zeros((target_height, target_width, 3), dtype=np.uint8)
+                            x_offset = (target_width - new_w) // 2
+                            y_offset = (target_height - new_h) // 2
+                            background[y_offset:y_offset+new_h, x_offset:x_offset+new_w] = resized_img
+                            return cv2.cvtColor(background, cv2.COLOR_BGR2RGB)
+
+                        processed_clip = clip.fl_image(process_frame)
+                        fps = processed_clip.fps if processed_clip.fps else 24
+                        processed_clip.write_videofile(
+                            output_file_path,
+                            codec='libx264',
+                            fps=fps,
+                            preset='slow',
+                            threads=4,
+                            audio=False
+                        )
+                        processed_clip.close()
+
+                        # Copy corresponding txt file
+                        txt_source = os.path.join(root, f"{base_name}.txt")
+                        if os.path.exists(txt_source):
+                            txt_target = os.path.join(output_dir, f"{base_name}.txt")
+                            shutil.copy2(txt_source, txt_target)
+                    else:
+                        # Only process the first segment (0 to max_duration)
+                        start_time = 0
+                        end_time = min(max_duration, total_duration)
+                        sub_clip = clip.subclip(start_time, end_time)
+
+                        output_filename = f"{base_name}.mp4"  # Keep original name (no segment number)
+                        output_file_path = os.path.join(output_dir, output_filename)
+                        os.makedirs(os.path.dirname(output_file_path), exist_ok=True)
+
+                        def process_frame(frame):
+                            img = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+                            h, w = img.shape[:2]
+                            scale = min(target_width / w, target_height / h)
+                            new_w = int(w * scale)
+                            new_h = int(h * scale)
+                            resized_img = cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_AREA)
+                            background = np.zeros((target_height, target_width, 3), dtype=np.uint8)
+                            x_offset = (target_width - new_w) // 2
+                            y_offset = (target_height - new_h) // 2
+                            background[y_offset:y_offset+new_h, x_offset:x_offset+new_w] = resized_img
+                            return cv2.cvtColor(background, cv2.COLOR_BGR2RGB)
+
+                        processed_clip = sub_clip.fl_image(process_frame)
+                        fps = processed_clip.fps if processed_clip.fps else 24
+                        processed_clip.write_videofile(
+                            output_file_path,
+                            codec='libx264',
+                            fps=fps,
+                            preset='slow',
+                            threads=4,
+                            audio=False
+                        )
+                        processed_clip.close()
+
+                        # Copy corresponding txt file (no segment number)
+                        txt_source = os.path.join(root, f"{base_name}.txt")
+                        if os.path.exists(txt_source):
+                            txt_target = os.path.join(output_dir, f"{base_name}.txt")
+                            shutil.copy2(txt_source, txt_target)
+
+                    clip.close()
+                except Exception as e:
+                    print(f"Failed to process video {file_path}: {e}")
+
+
 # Example usage
 change_resolution_and_save(
     input_path="test-HunyuanVideo-pixelart-videos",
