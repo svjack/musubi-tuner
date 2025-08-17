@@ -246,6 +246,52 @@ accelerate launch --num_cpu_threads_per_process 1  wan_train_network.py \
     --sample_prompts Skirk.txt --sample_every_n_steps 500 --sample_at_first --vae Wan2.1_VAE.pth
 ```
 
+```bash
+### low noise
+accelerate launch --num_cpu_threads_per_process 1  wan_train_network.py \
+    --task t2v-A14B --t5 models_t5_umt5-xxl-enc-bf16.pth \
+    --dit wan2.2_t2v_low_noise_14B_fp16.safetensors \
+    --dataset_config video_config.toml --sdpa --mixed_precision fp16 --fp8_base --fp8_scaled \
+    --optimizer_type adamw8bit --learning_rate 2e-4 --gradient_checkpointing \
+    --max_data_loader_n_workers 2 --persistent_data_loader_workers \
+    --network_module networks.lora_wan --network_dim 32 \
+    --timestep_sampling shift --discrete_flow_shift 12.0 \
+    --max_train_epochs 5000 --save_every_n_steps 500 --seed 42 \
+    --preserve_distribution_shape --min_timestep 0 --max_timestep 875 \
+    --output_dir Yoite_w14_low_outputs --output_name Yoite_w14_low_lora \
+    --sample_prompts Yoite.txt --sample_every_n_steps 500 --sample_at_first --vae Wan2.1_VAE.pth
+
+### high noise
+accelerate launch --num_cpu_threads_per_process 1  wan_train_network.py \
+    --task t2v-A14B --t5 models_t5_umt5-xxl-enc-bf16.pth \
+    --dit wan2.2_t2v_high_noise_14B_fp16.safetensors \
+    --dataset_config video_config.toml --sdpa --mixed_precision fp16 --fp8_base --fp8_scaled \
+    --optimizer_type adamw8bit --learning_rate 2e-4 --gradient_checkpointing \
+    --max_data_loader_n_workers 2 --persistent_data_loader_workers \
+    --network_module networks.lora_wan --network_dim 32 \
+    --timestep_sampling shift --discrete_flow_shift 12.0 \
+    --max_train_epochs 5000 --save_every_n_steps 500 --seed 42 \
+    --preserve_distribution_shape --min_timestep 875 --max_timestep 1000 \
+    --output_dir Yoite_w14_high_outputs --output_name Yoite_w14_high_lora \
+    --sample_prompts Yoite.txt --sample_every_n_steps 500 --sample_at_first --vae Wan2.1_VAE.pth
+
+
+### both
+accelerate launch --num_cpu_threads_per_process 1  wan_train_network.py \
+    --task t2v-A14B --t5 models_t5_umt5-xxl-enc-bf16.pth \
+    --dit wan2.2_t2v_low_noise_14B_fp16.safetensors --dit_high_noise wan2.2_t2v_high_noise_14B_fp16.safetensors \
+    --offload_inactive_dit \
+    --dataset_config video_config.toml --sdpa --mixed_precision fp16 --fp8_base --fp8_scaled \
+    --optimizer_type adamw8bit --learning_rate 2e-4 --gradient_checkpointing \
+    --max_data_loader_n_workers 2 --persistent_data_loader_workers \
+    --network_module networks.lora_wan --network_dim 32 \
+    --timestep_sampling shift --discrete_flow_shift 12.0 \
+    --max_train_epochs 5000 --save_every_n_steps 500 --seed 42 \
+    --preserve_distribution_shape \
+    --output_dir Yoite_w14_outputs --output_name Yoite_w14_lora \
+    --sample_prompts Yoite.txt --sample_every_n_steps 500 --sample_at_first --vae Wan2.1_VAE.pth
+```
+
 ---
 
 ## 7. Inference
