@@ -30,6 +30,7 @@ python src/musubi_tuner/caption_images_by_qwen_vl.py --image_dir GPT-4o-Design-I
 ### Qwen Image
 
 vim image_config.toml
+
 ```toml
 [[datasets]]
 image_directory = "Xiang_Images_QwenVL_2_5_Captioned"
@@ -64,11 +65,13 @@ python src/musubi_tuner/qwen_image_cache_text_encoder_outputs.py \
     --dataset_config image_config.toml \
     --text_encoder qwen_2.5_vl_7b.safetensors \
     --batch_size 16
-```bash
+```
 
+```bash
 vim Xiang.txt 
 
 ​​夏日清凉：​​ 王翔，​​一个戴着眼镜的清爽青年，身穿简约白色T恤和卡其色短裤，站在阳光斑驳的树荫下，笑容灿烂地品尝着一支缀满巧克力碎的香草冰淇淋。​​ 暖色调，生活感镜头。
+```
 
 ```bash
 accelerate launch --num_cpu_threads_per_process 1 --mixed_precision bf16 src/musubi_tuner/qwen_image_train_network.py \
@@ -88,9 +91,11 @@ accelerate launch --num_cpu_threads_per_process 1 --mixed_precision bf16 src/mus
     --sample_prompts Xiang.txt --sample_every_n_steps 365 --sample_at_first
 ```
 
+```bash
 vim Four.txt 
 
 In the style of GPT-4o-Design-Images, Generate 4 image samples for the current design concept and piece them into 4 square blocks. 1 is a bright yellow gelato ball, topped with white ghost-shaped chocolate chips, with a neutral beige background; Square 2 is a pure white sundae cup with a cream top shaped like the outline of the Apple logo, and a light beige table; Square 3 is a brown chocolate ice cream with a mustache face frosting and a red syrup bow tie on the surface, with a soft beige background; Square 4 is an orange popsicle with a green leaf pattern and the Fanta blue trademark, with a light beige base. All products use a 3D cartoon texture, with soft shadows and a uniform background color. The style is 3D cartoon, and the ratio is 1:1
+```
 
 ```bash
 accelerate launch --num_cpu_threads_per_process 1 --mixed_precision bf16 src/musubi_tuner/qwen_image_train_network.py \
