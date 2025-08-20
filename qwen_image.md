@@ -1,3 +1,4 @@
+## Qwen Image
 ### Model download
 
 ```bash
@@ -114,3 +115,115 @@ accelerate launch --num_cpu_threads_per_process 1 --mixed_precision bf16 src/mus
     --output_dir Four_qwen_image_output --output_name Four_qwen_image_lora \
     --sample_prompts Four.txt --sample_every_n_steps 365 --sample_at_first
 ```
+
+## Qwen Image Edit 
+### Model download
+
+```bash
+huggingface-cli download Comfy-Org/Qwen-Image-Edit_ComfyUI split_files/diffusion_models/qwen_image_edit_bf16.safetensors --local-dir="."
+
+huggingface-cli download Comfy-Org/Qwen-Image_ComfyUI split_files/text_encoders/qwen_2.5_vl_7b.safetensors --local-dir="."
+
+huggingface-cli download Qwen/Qwen-Image vae/diffusion_pytorch_model.safetensors --local-dir="."
+```
+
+### Dataset Download 
+```python
+import os
+from PIL import Image
+from datasets import load_dataset
+from tqdm import tqdm
+
+def process_dataset():
+    # 加载数据集
+    dataset = load_dataset("svjack/Anime_Real_Landscape_Pair_Images_Captioned")
+    
+    # 创建输出文件夹
+    real_dir = "Real_control_Images"
+    anime_dir = "Anime_Images"
+    os.makedirs(real_dir, exist_ok=True)
+    os.makedirs(anime_dir, exist_ok=True)
+    
+    # 处理数据集中的每一行
+    for i, item in enumerate(tqdm(dataset['train'])):
+        # 获取图像
+        real_image = item['real_image']
+        anime_image = item['anime_image']
+        
+        # 生成文件名
+        filename = f"image_{i:06d}"
+        
+        # 保存real_image到Real_control_Images文件夹
+        real_image_path = os.path.join(real_dir, f"{filename}.png")
+        real_image.save(real_image_path)
+        
+        # 保存anime_image到Anime_Images文件夹
+        anime_image_path = os.path.join(anime_dir, f"{filename}.png")
+        anime_image.save(anime_image_path)
+        
+        # 创建对应的文本文件
+        text_file_path = os.path.join(anime_dir, f"{filename}.txt")
+        with open(text_file_path, 'w', encoding='utf-8') as f:
+            f.write("transform it into bright anime style.")
+    
+    print("处理完成！")
+    print(f"Real images 保存至: {real_dir}")
+    print(f"Anime images 保存至: {anime_dir}")
+
+if __name__ == "__main__":
+    process_dataset()
+```
+
+vim image_config.toml
+
+```toml
+[[datasets]]
+image_directory = "Anime_Images"
+control_directory = "Real_control_Images"
+
+[general]
+resolution = [ 384, 768,]
+caption_extension = ".txt"
+batch_size = 1
+enable_bucket = true
+bucket_no_upscale = false
+```
+
+```python
+python src/musubi_tuner/qwen_image_cache_latents.py \
+    --dataset_config image_config.toml \
+    --vae diffusion_pytorch_model.safetensors
+
+
+python src/musubi_tuner/qwen_image_cache_text_encoder_outputs.py \
+    --dataset_config image_config.toml \
+    --text_encoder qwen_2.5_vl_7b.safetensors \
+    --batch_size 16
+```
+
+```bash
+vim trans.txt 
+
+transform it into bright anime style. --ci moon.png
+```
+
+```bash
+accelerate launch --num_cpu_threads_per_process 1 --mixed_precision bf16 src/musubi_tuner/qwen_image_train_network.py \
+    --dit qwen_image_edit_bf16.safetensors  \
+    --vae diffusion_pytorch_model.safetensors \
+    --text_encoder qwen_2.5_vl_7b.safetensors \
+    --dataset_config image_config.toml \
+    --network_module=networks.lora_qwen_image \
+    --sdpa --mixed_precision bf16 --fp8_base --fp8_scaled --fp8_vl --blocks_to_swap 16 \
+    --timestep_sampling shift \
+    --weighting_scheme none --discrete_flow_shift 3.0 \
+    --optimizer_type adamw8bit --learning_rate 1e-4 --gradient_checkpointing \
+    --max_data_loader_n_workers 2 --persistent_data_loader_workers \
+    --network_dim 32 \
+    --max_train_epochs 500 --save_every_n_steps 365 --seed 42 \
+    --output_dir qwen_edit_bright_anime_output --output_name qwen_edit_bright_anime_lora \
+    --edit --sample_prompts trans.txt --sample_every_n_steps 365 --sample_at_first 
+```
+
+
+
