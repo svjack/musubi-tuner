@@ -197,7 +197,7 @@ python src/musubi_tuner/qwen_image_cache_latents.py \
 
 python src/musubi_tuner/qwen_image_cache_text_encoder_outputs.py \
     --dataset_config image_config.toml \
-    --text_encoder qwen_2.5_vl_7b.safetensors \
+    --text_encoder qwen_2.5_vl_7b.safetensors --edit \
     --batch_size 16
 ```
 
