@@ -189,6 +189,20 @@ enable_bucket = true
 bucket_no_upscale = false
 ```
 
+```toml
+[[datasets]]
+image_directory = "folder_path"
+control_directory = "control_path"
+
+[general]
+resolution = [ 512, 512,]
+caption_extension = ".txt"
+batch_size = 1
+enable_bucket = true
+bucket_no_upscale = false
+
+```
+
 ```python
 python src/musubi_tuner/qwen_image_cache_latents.py \
     --dataset_config image_config.toml \
