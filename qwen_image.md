@@ -214,7 +214,7 @@ accelerate launch --num_cpu_threads_per_process 1 --mixed_precision bf16 src/mus
     --text_encoder qwen_2.5_vl_7b.safetensors \
     --dataset_config image_config.toml \
     --network_module=networks.lora_qwen_image \
-    --sdpa --mixed_precision bf16 --fp8_base --fp8_scaled --fp8_vl --blocks_to_swap 16 \
+    --sdpa --mixed_precision bf16 --fp8_base --fp8_scaled --fp8_vl --blocks_to_swap 20 \
     --timestep_sampling shift \
     --weighting_scheme none --discrete_flow_shift 3.0 \
     --optimizer_type adamw8bit --learning_rate 1e-4 --gradient_checkpointing \
