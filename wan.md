@@ -38,6 +38,7 @@ git clone https://github.com/kohya-ss/musubi-tuner && cd musubi-tuner
 Install the required Python packages:
 
 ```bash
+pip uninstall torch torchvision -y
 pip install torch torchvision
 #pip install -r requirements.txt
 pip install -e .
