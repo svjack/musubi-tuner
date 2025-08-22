@@ -239,5 +239,22 @@ accelerate launch --num_cpu_threads_per_process 1 --mixed_precision bf16 src/mus
     --edit --sample_prompts trans.txt --sample_every_n_steps 365 --sample_at_first 
 ```
 
+```bash
+accelerate launch --num_cpu_threads_per_process 1 --mixed_precision bf16 src/musubi_tuner/qwen_image_train_network.py \
+    --dit split_files/diffusion_models/qwen_image_edit_bf16.safetensors  \
+    --vae vae/diffusion_pytorch_model.safetensors \
+    --text_encoder split_files/text_encoders/qwen_2.5_vl_7b.safetensors \
+    --dataset_config image_config.toml \
+    --network_module=networks.lora_qwen_image \
+    --sdpa --mixed_precision bf16 --fp8_base --fp8_scaled --fp8_vl --blocks_to_swap 20 \
+    --timestep_sampling shift \
+    --weighting_scheme none --discrete_flow_shift 3.0 \
+    --optimizer_type adamw8bit --learning_rate 1e-4 --gradient_checkpointing \
+    --max_data_loader_n_workers 2 --persistent_data_loader_workers \
+    --network_dim 32 \
+    --max_train_epochs 500 --save_every_n_steps 365 --seed 42 \
+    --output_dir qwen_edit_omni_trans_output --output_name qwen_edit_omni_trans_lora --edit
+
+```
 
 
